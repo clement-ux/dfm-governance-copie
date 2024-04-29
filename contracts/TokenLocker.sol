@@ -16,15 +16,6 @@ import "./interfaces/IGovToken.sol";
             core protocol operations.
  */
 contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
-    // Multiplier applied during token deposits and withdrawals. A balance within this
-    // contract corresponds to a deposit of `balance * LOCK_TO_TOKEN_RATIO` tokens. Balances
-    // in this contract are stored as `uint32`, so the invariant:
-    //
-    // `govToken.totalSupply() <= type(uint32).max * LOCK_TO_TOKEN_RATIO`
-    //
-    // cannot be violated or the system could break due to overflow.
-    uint256 public immutable LOCK_TO_TOKEN_RATIO;
-
     IGovToken public immutable govToken;
     IIncentiveVoting public immutable incentiveVoter;
 
@@ -32,13 +23,13 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
 
     struct AccountData {
         // Currently locked balance. Each epoch the lock weight decays by this amount.
-        uint32 locked;
+        uint120 locked;
         // Currently unlocked balance (from expired locks, can be withdrawn)
-        uint32 unlocked;
+        uint120 unlocked;
         // Currently "frozen" balance. A frozen balance is equivalent to a `MAX_LOCK_EPOCHS` lock,
         // where the lock weight does not decay over time. An account may have a locked balance or a
         // frozen balance, never both at the same time.
-        uint32 frozen;
+        uint120 frozen;
         // Boolean indicating if the account is currently frozen.
         bool isFrozen;
         // Current epoch within `accountEpochUnlocks`. Lock durations decay as this value increases.
@@ -63,21 +54,21 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
 
     // Rate at which the total lock weight decreases each epoch. The total decay rate may not
     // be equal to the total number of locked tokens, as it does not include frozen accounts.
-    uint32 totalDecayRate;
+    uint120 totalDecayRate;
     // Current epoch within `totalEpochWeights` and `totalEpochUnlocks`. When up-to-date
     // this value is always equal to `getEpoch()`
     uint16 totalUpdatedEpoch;
 
     // epoch -> total lock weight
-    uint40[65535] totalEpochWeights;
+    uint128[65535] totalEpochWeights;
     // epoch -> tokens to unlock in this epoch
-    uint32[65535] totalEpochUnlocks;
+    uint120[65535] totalEpochUnlocks;
 
     // account -> epoch -> lock weight
-    mapping(address => uint40[65535]) accountEpochWeights;
+    mapping(address => uint128[65535]) accountEpochWeights;
 
     // account -> epoch -> token balance unlocking this epoch
-    mapping(address => uint32[65535]) accountEpochUnlocks;
+    mapping(address => uint120[65535]) accountEpochUnlocks;
 
     // account -> primary account data structure
     mapping(address => AccountData) accountLockData;
@@ -95,16 +86,11 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
         address core,
         IGovToken _token,
         IIncentiveVoting _voter,
-        uint256 _lockToTokenRatio,
         bool _penaltyWithdrawalsEnabled
     ) CoreOwnable(core) SystemStart(core) {
         govToken = _token;
         incentiveVoter = _voter;
-
-        LOCK_TO_TOKEN_RATIO = _lockToTokenRatio;
         isPenaltyWithdrawalEnabled = _penaltyWithdrawalsEnabled;
-
-        require(_token.totalSupply() <= type(uint32).max * _lockToTokenRatio, "Total supply too large!");
     }
 
     modifier notFrozen(address account) {
@@ -136,7 +122,7 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
 
         locked = accountData.locked;
         if (locked > 0) {
-            uint32[65535] storage epochUnlocks = accountEpochUnlocks[account];
+            uint120[65535] storage epochUnlocks = accountEpochUnlocks[account];
             uint256 accountEpoch = accountData.epoch;
             uint256 systemEpoch = getEpoch();
 
@@ -176,8 +162,8 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
      */
     function getAccountWeightAt(address account, uint256 epoch) public view returns (uint256) {
         if (epoch > getEpoch()) return 0;
-        uint32[65535] storage epochUnlocks = accountEpochUnlocks[account];
-        uint40[65535] storage epochWeights = accountEpochWeights[account];
+        uint120[65535] storage epochUnlocks = accountEpochUnlocks[account];
+        uint128[65535] storage epochWeights = accountEpochWeights[account];
         AccountData storage accountData = accountLockData[account];
 
         uint256 accountEpoch = accountData.epoch;
@@ -221,7 +207,7 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
         frozenAmount = accountData.frozen;
         if (frozenAmount == 0) {
             if (minEpochs == 0) minEpochs = 1;
-            uint32[65535] storage unlocks = accountEpochUnlocks[account];
+            uint120[65535] storage unlocks = accountEpochUnlocks[account];
 
             uint256 systemEpoch = getEpoch();
             uint256 currentEpoch = systemEpoch + minEpochs;
@@ -259,7 +245,7 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
     /**
         @notice Get withdrawal and penalty amounts when withdrawing locked tokens
         @param account Account that will withdraw locked tokens
-        @param amountToWithdraw Desired withdrawal amount, divided by `LOCK_TO_TOKEN_RATIO`
+        @param amountToWithdraw Desired withdrawal amount
         @return amountWithdrawn Actual amount withdrawn. If `amountToWithdraw` exceeds the
                                 max possible withdrawal, the return value is the max
                                 amount received after paying the penalty.
@@ -270,11 +256,10 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
         uint256 amountToWithdraw
     ) external view returns (uint256 amountWithdrawn, uint256 penaltyAmountPaid) {
         AccountData storage accountData = accountLockData[account];
-        uint32[65535] storage unlocks = accountEpochUnlocks[account];
-        if (amountToWithdraw != type(uint256).max) amountToWithdraw *= LOCK_TO_TOKEN_RATIO;
+        uint120[65535] storage unlocks = accountEpochUnlocks[account];
 
         // first we apply the unlocked balance without penalty
-        uint256 unlocked = accountData.unlocked * LOCK_TO_TOKEN_RATIO;
+        uint256 unlocked = accountData.unlocked;
         if (unlocked >= amountToWithdraw) {
             return (amountToWithdraw, 0);
         }
@@ -296,7 +281,7 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
             }
 
             if ((bitfield >> (accountEpoch % 256)) & uint256(1) == 1) {
-                uint256 lockAmount = unlocks[accountEpoch] * LOCK_TO_TOKEN_RATIO;
+                uint256 lockAmount = unlocks[accountEpoch];
 
                 uint256 penaltyOnAmount = 0;
                 if (accountEpoch > systemEpoch) {
@@ -311,8 +296,6 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
                         (remaining * MAX_LOCK_EPOCHS) /
                         (MAX_LOCK_EPOCHS - (epochsToUnlock - offset)) -
                         remaining;
-                    uint256 dust = ((penaltyOnAmount + remaining) % LOCK_TO_TOKEN_RATIO);
-                    if (dust > 0) penaltyOnAmount += LOCK_TO_TOKEN_RATIO - dust;
                     penaltyTotal += penaltyOnAmount;
                     remaining = 0;
                 } else {
@@ -345,11 +328,11 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
         uint256 systemEpoch = getEpoch();
         if (epoch > systemEpoch) return 0;
 
-        uint32 updatedEpoch = totalUpdatedEpoch;
+        uint120 updatedEpoch = totalUpdatedEpoch;
         if (epoch <= updatedEpoch) return totalEpochWeights[epoch];
 
-        uint32 rate = totalDecayRate;
-        uint40 weight = totalEpochWeights[updatedEpoch];
+        uint120 rate = totalDecayRate;
+        uint128 weight = totalEpochWeights[updatedEpoch];
         if (rate == 0 || updatedEpoch >= systemEpoch) {
             return weight;
         }
@@ -380,9 +363,9 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
      */
     function getTotalWeightWrite() public returns (uint256) {
         uint256 epoch = getEpoch();
-        uint32 rate = totalDecayRate;
-        uint32 updatedEpoch = totalUpdatedEpoch;
-        uint40 weight = totalEpochWeights[updatedEpoch];
+        uint120 rate = totalDecayRate;
+        uint120 updatedEpoch = totalUpdatedEpoch;
+        uint128 weight = totalEpochWeights[updatedEpoch];
 
         if (weight == 0) {
             totalUpdatedEpoch = uint16(epoch);
@@ -418,7 +401,7 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
         require(_epochs > 0, "Min 1 epoch");
         require(_amount > 0, "Amount must be nonzero");
         _lock(_account, _amount, _epochs);
-        govToken.transferToLocker(msg.sender, _amount * LOCK_TO_TOKEN_RATIO);
+        govToken.transferToLocker(msg.sender, _amount);
 
         return true;
     }
@@ -431,22 +414,22 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
         uint256 totalWeight = getTotalWeightWrite();
         uint256 systemEpoch = getEpoch();
         if (accountData.isFrozen) {
-            accountData.frozen += uint32(_amount);
+            accountData.frozen += uint120(_amount);
             _epochs = MAX_LOCK_EPOCHS;
         } else {
             // disallow a 1 epoch lock in the final half of the epoch
             if (_epochs == 1 && block.timestamp % EPOCH_LENGTH > EPOCH_LENGTH / 2) _epochs = 2;
 
-            accountData.locked = uint32(accountData.locked + _amount);
-            totalDecayRate = uint32(totalDecayRate + _amount);
+            accountData.locked = uint120(accountData.locked + _amount);
+            totalDecayRate = uint120(totalDecayRate + _amount);
 
-            uint32[65535] storage unlocks = accountEpochUnlocks[_account];
+            uint120[65535] storage unlocks = accountEpochUnlocks[_account];
             uint256 unlockEpoch = systemEpoch + _epochs;
             uint256 previous = unlocks[unlockEpoch];
 
             // modify epoch unlocks and unlock bitfield
-            unlocks[unlockEpoch] = uint32(previous + _amount);
-            totalEpochUnlocks[unlockEpoch] += uint32(_amount);
+            unlocks[unlockEpoch] = uint120(previous + _amount);
+            totalEpochUnlocks[unlockEpoch] += uint120(_amount);
             if (previous == 0) {
                 uint256 idx = unlockEpoch / 256;
                 uint256 bitfield = accountData.updateEpochs[idx] | (uint256(1) << (unlockEpoch % 256));
@@ -455,9 +438,9 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
         }
 
         // update and adjust account weight and decay rate
-        accountEpochWeights[_account][systemEpoch] = uint40(accountWeight + _amount * _epochs);
+        accountEpochWeights[_account][systemEpoch] = uint128(accountWeight + _amount * _epochs);
         // update and modify total weight
-        totalEpochWeights[systemEpoch] = uint40(totalWeight + _amount * _epochs);
+        totalEpochWeights[systemEpoch] = uint128(totalWeight + _amount * _epochs);
         emit LockCreated(_account, _amount, _epochs);
     }
 
@@ -484,18 +467,18 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
         AccountData storage accountData = accountLockData[msg.sender];
         uint256 systemEpoch = getEpoch();
         uint256 increase = (_newEpochs - _epochs) * _amount;
-        uint32[65535] storage unlocks = accountEpochUnlocks[msg.sender];
+        uint120[65535] storage unlocks = accountEpochUnlocks[msg.sender];
 
         // update and adjust account weight
         // current decay rate is unaffected when extending
         uint256 weight = _epochWeightWrite(msg.sender);
-        accountEpochWeights[msg.sender][systemEpoch] = uint40(weight + increase);
+        accountEpochWeights[msg.sender][systemEpoch] = uint128(weight + increase);
 
         // reduce account unlock for previous epoch and modify bitfield
         uint256 changedEpoch = systemEpoch + _epochs;
         uint256 previous = unlocks[changedEpoch];
-        unlocks[changedEpoch] = uint32(previous - _amount);
-        totalEpochUnlocks[changedEpoch] -= uint32(_amount);
+        unlocks[changedEpoch] = uint120(previous - _amount);
+        totalEpochUnlocks[changedEpoch] -= uint120(_amount);
         if (previous == _amount) {
             uint256 idx = changedEpoch / 256;
             uint256 bitfield = accountData.updateEpochs[idx] & ~(uint256(1) << (changedEpoch % 256));
@@ -505,8 +488,8 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
         // increase account unlock for new epoch and modify bitfield
         changedEpoch = systemEpoch + _newEpochs;
         previous = unlocks[changedEpoch];
-        unlocks[changedEpoch] = uint32(previous + _amount);
-        totalEpochUnlocks[changedEpoch] += uint32(_amount);
+        unlocks[changedEpoch] = uint120(previous + _amount);
+        totalEpochUnlocks[changedEpoch] += uint120(_amount);
         if (previous == 0) {
             uint256 idx = changedEpoch / 256;
             uint256 bitfield = accountData.updateEpochs[idx] | (uint256(1) << (changedEpoch % 256));
@@ -514,7 +497,7 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
         }
 
         // update and modify total weight
-        totalEpochWeights[systemEpoch] = uint40(getTotalWeightWrite() + increase);
+        totalEpochWeights[systemEpoch] = uint128(getTotalWeightWrite() + increase);
         emit LockExtended(msg.sender, _amount, _epochs, _newEpochs);
 
         return true;
@@ -529,7 +512,7 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
      */
     function lockMany(address _account, LockData[] calldata newLocks) external notFrozen(_account) returns (bool) {
         AccountData storage accountData = accountLockData[_account];
-        uint32[65535] storage unlocks = accountEpochUnlocks[_account];
+        uint120[65535] storage unlocks = accountEpochUnlocks[_account];
 
         // update account weight
         uint256 accountWeight = _epochWeightWrite(_account);
@@ -561,8 +544,8 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
 
             uint256 unlockEpoch = systemEpoch + epoch;
             uint256 previous = unlocks[unlockEpoch];
-            unlocks[unlockEpoch] = uint32(previous + amount);
-            totalEpochUnlocks[unlockEpoch] += uint32(amount);
+            unlocks[unlockEpoch] = uint120(previous + amount);
+            totalEpochUnlocks[unlockEpoch] += uint120(amount);
 
             if (previous == 0) {
                 uint256 idx = (unlockEpoch / 256) - (systemEpoch / 256);
@@ -574,14 +557,14 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
         accountData.updateEpochs[systemEpoch / 256] = bitfield[0];
         accountData.updateEpochs[(systemEpoch / 256) + 1] = bitfield[1];
 
-        govToken.transferToLocker(msg.sender, increasedAmount * LOCK_TO_TOKEN_RATIO);
+        govToken.transferToLocker(msg.sender, increasedAmount);
 
         // update account and total weight / decay storage values
-        accountEpochWeights[_account][systemEpoch] = uint40(accountWeight + increasedWeight);
-        totalEpochWeights[systemEpoch] = uint40(getTotalWeightWrite() + increasedWeight);
+        accountEpochWeights[_account][systemEpoch] = uint128(accountWeight + increasedWeight);
+        totalEpochWeights[systemEpoch] = uint128(getTotalWeightWrite() + increasedWeight);
 
-        accountData.locked = uint32(accountData.locked + increasedAmount);
-        totalDecayRate = uint32(totalDecayRate + increasedAmount);
+        accountData.locked = uint120(accountData.locked + increasedAmount);
+        totalDecayRate = uint120(totalDecayRate + increasedAmount);
         emit LocksCreated(_account, newLocks);
 
         return true;
@@ -596,7 +579,7 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
      */
     function extendMany(ExtendLockData[] calldata newExtendLocks) external notFrozen(msg.sender) returns (bool) {
         AccountData storage accountData = accountLockData[msg.sender];
-        uint32[65535] storage unlocks = accountEpochUnlocks[msg.sender];
+        uint120[65535] storage unlocks = accountEpochUnlocks[msg.sender];
 
         // update account weight
         uint256 accountWeight = _epochWeightWrite(msg.sender);
@@ -626,8 +609,8 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
             // reduce account unlock for previous epoch and modify bitfield
             oldEpochs += systemEpoch;
             uint256 previous = unlocks[oldEpochs];
-            unlocks[oldEpochs] = uint32(previous - amount);
-            totalEpochUnlocks[oldEpochs] -= uint32(amount);
+            unlocks[oldEpochs] = uint120(previous - amount);
+            totalEpochUnlocks[oldEpochs] -= uint120(amount);
             if (previous == amount) {
                 uint256 idx = (oldEpochs / 256) - (systemEpoch / 256);
                 bitfield[idx] = bitfield[idx] & ~(uint256(1) << (oldEpochs % 256));
@@ -636,8 +619,8 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
             // increase account unlock for new epoch and modify bitfield
             newEpochs += systemEpoch;
             previous = unlocks[newEpochs];
-            unlocks[newEpochs] = uint32(previous + amount);
-            totalEpochUnlocks[newEpochs] += uint32(amount);
+            unlocks[newEpochs] = uint120(previous + amount);
+            totalEpochUnlocks[newEpochs] += uint120(amount);
             if (previous == 0) {
                 uint256 idx = (newEpochs / 256) - (systemEpoch / 256);
                 bitfield[idx] = bitfield[idx] | (uint256(1) << (newEpochs % 256));
@@ -648,8 +631,8 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
         accountData.updateEpochs[systemEpoch / 256] = bitfield[0];
         accountData.updateEpochs[(systemEpoch / 256) + 1] = bitfield[1];
 
-        accountEpochWeights[msg.sender][systemEpoch] = uint40(accountWeight + increasedWeight);
-        totalEpochWeights[systemEpoch] = uint40(getTotalWeightWrite() + increasedWeight);
+        accountEpochWeights[msg.sender][systemEpoch] = uint128(accountWeight + increasedWeight);
+        totalEpochWeights[systemEpoch] = uint128(getTotalWeightWrite() + increasedWeight);
         emit LocksExtended(msg.sender, newExtendLocks);
 
         return true;
@@ -664,7 +647,7 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
      */
     function freeze() external notFrozen(msg.sender) {
         AccountData storage accountData = accountLockData[msg.sender];
-        uint32[65535] storage unlocks = accountEpochUnlocks[msg.sender];
+        uint120[65535] storage unlocks = accountEpochUnlocks[msg.sender];
 
         uint256 accountWeight = _epochWeightWrite(msg.sender);
         uint256 totalWeight = getTotalWeightWrite();
@@ -674,13 +657,13 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
         emit LocksFrozen(msg.sender, locked);
 
         if (locked > 0) {
-            totalDecayRate = uint32(totalDecayRate - locked);
-            accountData.frozen = uint32(locked);
+            totalDecayRate = uint120(totalDecayRate - locked);
+            accountData.frozen = uint120(locked);
             accountData.locked = 0;
 
             uint256 systemEpoch = getEpoch();
-            accountEpochWeights[msg.sender][systemEpoch] = uint40(locked * MAX_LOCK_EPOCHS);
-            totalEpochWeights[systemEpoch] = uint40(totalWeight - accountWeight + locked * MAX_LOCK_EPOCHS);
+            accountEpochWeights[msg.sender][systemEpoch] = uint128(locked * MAX_LOCK_EPOCHS);
+            totalEpochWeights[systemEpoch] = uint128(totalWeight - accountWeight + locked * MAX_LOCK_EPOCHS);
 
             // use bitfield to iterate acount unlocks and subtract them from the total unlocks
             uint256 bitfield = accountData.updateEpochs[systemEpoch / 256] >> (systemEpoch % 256);
@@ -693,7 +676,7 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
                     bitfield = bitfield >> 1;
                 }
                 if (bitfield & uint256(1) == 1) {
-                    uint32 amount = unlocks[systemEpoch];
+                    uint120 amount = unlocks[systemEpoch];
                     unlocks[systemEpoch] = 0;
                     totalEpochUnlocks[systemEpoch] -= amount;
                     locked -= amount;
@@ -720,7 +703,7 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
      */
     function unfreeze(bool keepIncentivesVote) external {
         AccountData storage accountData = accountLockData[msg.sender];
-        uint32[65535] storage unlocks = accountEpochUnlocks[msg.sender];
+        uint120[65535] storage unlocks = accountEpochUnlocks[msg.sender];
         require(accountData.isFrozen, "Locks already unfrozen");
 
         uint256 frozen = accountData.frozen;
@@ -733,8 +716,8 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
             getTotalWeightWrite();
 
             // add account decay to the total decay rate
-            totalDecayRate = uint32(totalDecayRate + frozen);
-            accountData.locked = uint32(frozen);
+            totalDecayRate = uint120(totalDecayRate + frozen);
+            accountData.locked = uint120(frozen);
             accountData.frozen = 0;
 
             uint256 systemEpoch = getEpoch();
@@ -742,8 +725,8 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
             uint256 unlockEpoch = systemEpoch + MAX_LOCK_EPOCHS;
 
             // modify epoch unlocks and unlock bitfield
-            unlocks[unlockEpoch] = uint32(frozen);
-            totalEpochUnlocks[unlockEpoch] += uint32(frozen);
+            unlocks[unlockEpoch] = uint120(frozen);
+            totalEpochUnlocks[unlockEpoch] += uint120(frozen);
             uint256 idx = unlockEpoch / 256;
             uint256 bitfield = accountData.updateEpochs[idx] | (uint256(1) << (unlockEpoch % 256));
             accountData.updateEpochs[idx] = bitfield;
@@ -769,7 +752,7 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
         if (_epochs > 0) {
             _lock(msg.sender, unlocked, _epochs);
         } else {
-            govToken.transfer(msg.sender, unlocked * LOCK_TO_TOKEN_RATIO);
+            govToken.transfer(msg.sender, unlocked);
             emit LocksWithdrawn(msg.sender, unlocked, 0);
         }
         return true;
@@ -783,7 +766,7 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
 
              [total amount] * [epochs to unlock] / MAX_LOCK_EPOCHS = [penalty amount]
 
-        @param amountToWithdraw Amount to withdraw, divided by `LOCK_TO_TOKEN_RATIO`. This
+        @param amountToWithdraw Amount to withdraw. This
                                 is the same number of tokens that will be received; the
                                 penalty amount is taken on top of this. Reverts if the
                                 caller's locked balances are insufficient to cover both
@@ -796,14 +779,13 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
     function withdrawWithPenalty(uint256 amountToWithdraw) external notFrozen(msg.sender) returns (uint256) {
         require(isPenaltyWithdrawalEnabled, "Penalty withdrawals are disabled");
         AccountData storage accountData = accountLockData[msg.sender];
-        uint32[65535] storage unlocks = accountEpochUnlocks[msg.sender];
+        uint120[65535] storage unlocks = accountEpochUnlocks[msg.sender];
         uint256 weight = _epochWeightWrite(msg.sender);
-        if (amountToWithdraw != type(uint256).max) amountToWithdraw *= LOCK_TO_TOKEN_RATIO;
 
         // start by withdrawing unlocked balance without penalty
-        uint256 unlocked = accountData.unlocked * LOCK_TO_TOKEN_RATIO;
+        uint256 unlocked = accountData.unlocked;
         if (unlocked >= amountToWithdraw) {
-            accountData.unlocked = uint32((unlocked - amountToWithdraw) / LOCK_TO_TOKEN_RATIO);
+            accountData.unlocked = uint120(unlocked - amountToWithdraw);
             govToken.transfer(msg.sender, amountToWithdraw);
             return amountToWithdraw;
         }
@@ -831,29 +813,27 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
             }
 
             if ((bitfield >> (systemEpoch % 256)) & uint256(1) == 1) {
-                uint256 lockAmount = unlocks[systemEpoch] * LOCK_TO_TOKEN_RATIO;
+                uint256 lockAmount = unlocks[systemEpoch];
                 uint256 penaltyOnAmount = (lockAmount * epochsToUnlock) / MAX_LOCK_EPOCHS;
 
                 if (lockAmount - penaltyOnAmount > remaining) {
                     // after penalty, locked amount exceeds remaining required balance
                     // we can complete the withdrawal using only a portion of this lock
                     penaltyOnAmount = (remaining * MAX_LOCK_EPOCHS) / (MAX_LOCK_EPOCHS - epochsToUnlock) - remaining;
-                    uint256 dust = ((penaltyOnAmount + remaining) % LOCK_TO_TOKEN_RATIO);
-                    if (dust > 0) penaltyOnAmount += LOCK_TO_TOKEN_RATIO - dust;
                     penaltyTotal += penaltyOnAmount;
-                    uint256 lockReduceAmount = (penaltyOnAmount + remaining) / LOCK_TO_TOKEN_RATIO;
+                    uint256 lockReduceAmount = (penaltyOnAmount + remaining);
                     decreasedWeight += lockReduceAmount * epochsToUnlock;
-                    unlocks[systemEpoch] -= uint32(lockReduceAmount);
-                    totalEpochUnlocks[systemEpoch] -= uint32(lockReduceAmount);
+                    unlocks[systemEpoch] -= uint120(lockReduceAmount);
+                    totalEpochUnlocks[systemEpoch] -= uint120(lockReduceAmount);
                     remaining = 0;
                 } else {
                     // after penalty, locked amount does not exceed remaining required balance
                     // the entire lock must be used in the withdrawal
                     penaltyTotal += penaltyOnAmount;
-                    decreasedWeight += (lockAmount / LOCK_TO_TOKEN_RATIO) * epochsToUnlock;
+                    decreasedWeight += lockAmount * epochsToUnlock;
                     bitfield = bitfield & ~(uint256(1) << (systemEpoch % 256));
                     unlocks[systemEpoch] = 0;
-                    totalEpochUnlocks[systemEpoch] -= uint32(lockAmount / LOCK_TO_TOKEN_RATIO);
+                    totalEpochUnlocks[systemEpoch] -= uint120(lockAmount);
                     remaining -= lockAmount - penaltyOnAmount;
                 }
 
@@ -872,10 +852,10 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
         }
 
         systemEpoch = getEpoch();
-        accountEpochWeights[msg.sender][systemEpoch] = uint40(weight - decreasedWeight);
-        totalEpochWeights[systemEpoch] = uint40(getTotalWeightWrite() - decreasedWeight);
-        accountData.locked -= uint32((amountToWithdraw + penaltyTotal - unlocked) / LOCK_TO_TOKEN_RATIO);
-        totalDecayRate -= uint32((amountToWithdraw + penaltyTotal - unlocked) / LOCK_TO_TOKEN_RATIO);
+        accountEpochWeights[msg.sender][systemEpoch] = uint128(weight - decreasedWeight);
+        totalEpochWeights[systemEpoch] = uint128(getTotalWeightWrite() - decreasedWeight);
+        accountData.locked -= uint120(amountToWithdraw + penaltyTotal - unlocked);
+        totalDecayRate -= uint120(amountToWithdraw + penaltyTotal - unlocked);
 
         govToken.transfer(msg.sender, amountToWithdraw);
         govToken.transfer(CORE_OWNER.feeReceiver(), penaltyTotal);
@@ -889,8 +869,8 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
      */
     function _epochWeightWrite(address account) internal returns (uint256 weight) {
         AccountData storage accountData = accountLockData[account];
-        uint32[65535] storage epochUnlocks = accountEpochUnlocks[account];
-        uint40[65535] storage epochWeights = accountEpochWeights[account];
+        uint120[65535] storage epochUnlocks = accountEpochUnlocks[account];
+        uint128[65535] storage epochWeights = accountEpochWeights[account];
 
         uint256 systemEpoch = getEpoch();
         uint256 accountEpoch = accountData.epoch;
@@ -900,7 +880,7 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
         if (accountData.frozen > 0) {
             while (systemEpoch > accountEpoch) {
                 accountEpoch++;
-                epochWeights[accountEpoch] = uint40(weight);
+                epochWeights[accountEpoch] = uint128(weight);
             }
             accountData.epoch = uint16(systemEpoch);
             return weight;
@@ -921,14 +901,14 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
         while (accountEpoch < systemEpoch) {
             accountEpoch++;
             weight -= locked;
-            epochWeights[accountEpoch] = uint40(weight);
+            epochWeights[accountEpoch] = uint128(weight);
             if (accountEpoch % 256 == 0) {
                 bitfield = accountData.updateEpochs[accountEpoch / 256];
             } else {
                 bitfield = bitfield >> 1;
             }
             if (bitfield & uint256(1) == 1) {
-                uint32 amount = epochUnlocks[accountEpoch];
+                uint120 amount = epochUnlocks[accountEpoch];
                 locked -= amount;
                 unlocked += amount;
                 if (locked == 0) {
@@ -939,8 +919,8 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
             }
         }
 
-        accountData.unlocked = uint32(accountData.unlocked + unlocked);
-        accountData.locked = uint32(locked);
+        accountData.unlocked = uint120(accountData.unlocked + unlocked);
+        accountData.locked = uint120(locked);
         accountData.epoch = uint16(accountEpoch);
         return weight;
     }

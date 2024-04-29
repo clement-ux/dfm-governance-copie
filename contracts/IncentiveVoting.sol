@@ -27,7 +27,7 @@ contract IncentiveVoting is BaseConfig, DelegatedOps, SystemStart {
         // for unfrozen weight, recording the total is unnecessary because the
         // value decays. throughout the code, we check if frozenWeight > 0 as
         // a way to indicate if a lock is frozen.
-        uint40 frozenWeight;
+        uint128 frozenWeight;
         uint16 points;
         uint8 lockLength; // length of epochsToUnlock and lockedAmounts
         uint16 voteLength; // length of activeVotes
@@ -35,7 +35,7 @@ contract IncentiveVoting is BaseConfig, DelegatedOps, SystemStart {
         uint16[2][MAX_PCT] activeVotes;
         // arrays map to one another: lockedAmounts[0] unlocks in epochsToUnlock[0] epochs
         // values are sorted by time-to-unlock descending
-        uint32[MAX_LOCK_EPOCHS] lockedAmounts;
+        uint120[MAX_LOCK_EPOCHS] lockedAmounts;
         uint8[MAX_LOCK_EPOCHS] epochsToUnlock;
     }
 
@@ -52,18 +52,18 @@ contract IncentiveVoting is BaseConfig, DelegatedOps, SystemStart {
     mapping(address => AccountData) accountLockData;
 
     // id -> receiver data
-    uint32[65535] receiverDecayRate;
+    uint120[65535] receiverDecayRate;
     uint16[65535] receiverUpdatedEpoch;
     // id -> epoch -> absolute vote weight
-    uint40[65535][65535] receiverEpochWeights;
+    uint128[65535][65535] receiverEpochWeights;
     // id -> epoch -> registered lock weight that is lost
-    uint32[65535][65535] receiverEpochUnlocks;
+    uint120[65535][65535] receiverEpochUnlocks;
     uint16 public receiverCount;
 
-    uint32 totalDecayRate;
+    uint120 totalDecayRate;
     uint16 totalUpdatedEpoch;
-    uint40[65535] totalEpochWeights;
-    uint32[65535] totalEpochUnlocks;
+    uint128[65535] totalEpochWeights;
+    uint120[65535] totalEpochUnlocks;
 
     // emitted each time an account's lock weight is registered
     event AccountWeightRegistered(
@@ -167,11 +167,11 @@ contract IncentiveVoting is BaseConfig, DelegatedOps, SystemStart {
         while (updatedEpoch < epoch) {
             updatedEpoch++;
             weight -= rate;
-            receiverEpochWeights[idx][updatedEpoch] = uint40(weight);
+            receiverEpochWeights[idx][updatedEpoch] = uint128(weight);
             rate -= receiverEpochUnlocks[idx][updatedEpoch];
         }
 
-        receiverDecayRate[idx] = uint32(rate);
+        receiverDecayRate[idx] = uint120(rate);
         receiverUpdatedEpoch[idx] = uint16(epoch);
 
         return weight;
@@ -191,11 +191,11 @@ contract IncentiveVoting is BaseConfig, DelegatedOps, SystemStart {
         while (updatedEpoch < epoch) {
             updatedEpoch++;
             weight -= rate;
-            totalEpochWeights[updatedEpoch] = uint40(weight);
+            totalEpochWeights[updatedEpoch] = uint128(weight);
             rate -= totalEpochUnlocks[updatedEpoch];
         }
 
-        totalDecayRate = uint32(rate);
+        totalDecayRate = uint120(rate);
         totalUpdatedEpoch = uint16(epoch);
 
         return weight;
@@ -374,7 +374,7 @@ contract IncentiveVoting is BaseConfig, DelegatedOps, SystemStart {
             accountData.frozenWeight = 0;
 
             uint amount = frozenWeight / MAX_LOCK_EPOCHS;
-            accountData.lockedAmounts[0] = uint32(amount);
+            accountData.lockedAmounts[0] = uint120(amount);
             accountData.epochsToUnlock[0] = uint8(MAX_LOCK_EPOCHS);
             accountData.lockLength = 1;
 
@@ -407,7 +407,7 @@ contract IncentiveVoting is BaseConfig, DelegatedOps, SystemStart {
         uint256 systemEpoch = getEpoch();
         uint256 accountEpoch = accountData.frozenWeight > 0 ? systemEpoch : accountData.epoch;
         uint8[MAX_LOCK_EPOCHS] storage epochsToUnlock = accountData.epochsToUnlock;
-        uint32[MAX_LOCK_EPOCHS] storage amounts = accountData.lockedAmounts;
+        uint120[MAX_LOCK_EPOCHS] storage amounts = accountData.lockedAmounts;
 
         lockData = new LockData[](length);
         uint256 idx;
@@ -438,12 +438,12 @@ contract IncentiveVoting is BaseConfig, DelegatedOps, SystemStart {
         uint256 length = lockData.length;
         if (frozen > 0) {
             frozen *= MAX_LOCK_EPOCHS;
-            accountData.frozenWeight = uint40(frozen);
+            accountData.frozenWeight = uint128(frozen);
         } else if (length > 0) {
             for (uint256 i = 0; i < length; i++) {
                 uint256 amount = lockData[i].amount;
                 uint256 epochsToUnlock = lockData[i].epochsToUnlock;
-                accountData.lockedAmounts[i] = uint32(amount);
+                accountData.lockedAmounts[i] = uint120(amount);
                 accountData.epochsToUnlock[i] = uint8(epochsToUnlock);
             }
         } else {
@@ -527,14 +527,14 @@ contract IncentiveVoting is BaseConfig, DelegatedOps, SystemStart {
             for (uint256 x = 0; x < lockLength; x++) {
                 uint256 epochsToUnlock = lockData[x].epochsToUnlock;
                 uint256 amount = (lockData[x].amount * points) / MAX_PCT;
-                receiverEpochUnlocks[id][systemEpoch + epochsToUnlock] += uint32(amount);
+                receiverEpochUnlocks[id][systemEpoch + epochsToUnlock] += uint120(amount);
 
-                epochUnlocks[epochsToUnlock] += uint32(amount);
+                epochUnlocks[epochsToUnlock] += uint120(amount);
                 weight += amount * epochsToUnlock;
                 decayRate += amount;
             }
-            receiverEpochWeights[id][systemEpoch] = uint40(getReceiverWeightWrite(id) + weight);
-            receiverDecayRate[id] += uint32(decayRate);
+            receiverEpochWeights[id][systemEpoch] = uint128(getReceiverWeightWrite(id) + weight);
+            receiverDecayRate[id] += uint120(decayRate);
 
             totalWeight += weight;
             totalDecay += decayRate;
@@ -542,10 +542,10 @@ contract IncentiveVoting is BaseConfig, DelegatedOps, SystemStart {
 
         for (uint256 i = 0; i < lockLength; i++) {
             uint256 epochsToUnlock = lockData[i].epochsToUnlock;
-            totalEpochUnlocks[systemEpoch + epochsToUnlock] += uint32(epochUnlocks[epochsToUnlock]);
+            totalEpochUnlocks[systemEpoch + epochsToUnlock] += uint120(epochUnlocks[epochsToUnlock]);
         }
-        totalEpochWeights[systemEpoch] = uint40(getTotalWeightWrite() + totalWeight);
-        totalDecayRate += uint32(totalDecay);
+        totalEpochWeights[systemEpoch] = uint128(getTotalWeightWrite() + totalWeight);
+        totalDecayRate += uint120(totalDecay);
     }
 
     /** @dev Should not be called directly, use `_addVoteWeights` */
@@ -559,11 +559,11 @@ contract IncentiveVoting is BaseConfig, DelegatedOps, SystemStart {
 
             uint256 weight = (frozenWeight * points) / MAX_PCT;
 
-            receiverEpochWeights[id][systemEpoch] = uint40(getReceiverWeightWrite(id) + weight);
+            receiverEpochWeights[id][systemEpoch] = uint128(getReceiverWeightWrite(id) + weight);
             totalWeight += weight;
         }
 
-        totalEpochWeights[systemEpoch] = uint40(getTotalWeightWrite() + totalWeight);
+        totalEpochWeights[systemEpoch] = uint128(getTotalWeightWrite() + totalWeight);
     }
 
     /** @dev Should not be called directly, use `_removeVoteWeights` */
@@ -584,14 +584,14 @@ contract IncentiveVoting is BaseConfig, DelegatedOps, SystemStart {
             for (uint256 x = 0; x < lockLength; x++) {
                 uint256 epochsToUnlock = lockData[x].epochsToUnlock;
                 uint256 amount = (lockData[x].amount * points) / MAX_PCT;
-                receiverEpochUnlocks[id][systemEpoch + epochsToUnlock] -= uint32(amount);
+                receiverEpochUnlocks[id][systemEpoch + epochsToUnlock] -= uint120(amount);
 
-                epochUnlocks[epochsToUnlock] += uint32(amount);
+                epochUnlocks[epochsToUnlock] += uint120(amount);
                 weight += amount * epochsToUnlock;
                 decayRate += amount;
             }
-            receiverEpochWeights[id][systemEpoch] = uint40(getReceiverWeightWrite(id) - weight);
-            receiverDecayRate[id] -= uint32(decayRate);
+            receiverEpochWeights[id][systemEpoch] = uint128(getReceiverWeightWrite(id) - weight);
+            receiverDecayRate[id] -= uint120(decayRate);
 
             totalWeight += weight;
             totalDecay += decayRate;
@@ -599,10 +599,10 @@ contract IncentiveVoting is BaseConfig, DelegatedOps, SystemStart {
 
         for (uint256 i = 0; i < lockLength; i++) {
             uint256 epochsToUnlock = lockData[i].epochsToUnlock;
-            totalEpochUnlocks[systemEpoch + epochsToUnlock] -= uint32(epochUnlocks[epochsToUnlock]);
+            totalEpochUnlocks[systemEpoch + epochsToUnlock] -= uint120(epochUnlocks[epochsToUnlock]);
         }
-        totalEpochWeights[systemEpoch] = uint40(getTotalWeightWrite() - totalWeight);
-        totalDecayRate -= uint32(totalDecay);
+        totalEpochWeights[systemEpoch] = uint128(getTotalWeightWrite() - totalWeight);
+        totalDecayRate -= uint120(totalDecay);
     }
 
     /** @dev Should not be called directly, use `_removeVoteWeights` */
@@ -616,11 +616,11 @@ contract IncentiveVoting is BaseConfig, DelegatedOps, SystemStart {
 
             uint256 weight = (frozenWeight * points) / MAX_PCT;
 
-            receiverEpochWeights[id][systemEpoch] = uint40(getReceiverWeightWrite(id) - weight);
+            receiverEpochWeights[id][systemEpoch] = uint128(getReceiverWeightWrite(id) - weight);
 
             totalWeight += weight;
         }
 
-        totalEpochWeights[systemEpoch] = uint40(getTotalWeightWrite() - totalWeight);
+        totalEpochWeights[systemEpoch] = uint128(getTotalWeightWrite() - totalWeight);
     }
 }
