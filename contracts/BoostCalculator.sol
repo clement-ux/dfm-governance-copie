@@ -104,13 +104,13 @@ contract BoostCalculator is CoreOwnable, SystemStart {
         uint16 _decayPct
     ) CoreOwnable(_core) SystemStart(_core) {
         tokenLocker = _locker;
-        MAX_BOOST_GRACE_EPOCHS = _graceEpochs + getEpoch();
+        MAX_BOOST_GRACE_EPOCHS = _graceEpochs + getDay();
 
         maxBoostMultiplier = _maxBoostMul;
         maxBoostablePct = _maxBoostPct;
         decayBoostPct = _decayPct;
 
-        emit BoostParamsSet(_maxBoostMul, _maxBoostPct, _decayPct, getEpoch());
+        emit BoostParamsSet(_maxBoostMul, _maxBoostPct, _decayPct, getDay());
     }
 
     /**
@@ -129,9 +129,9 @@ contract BoostCalculator is CoreOwnable, SystemStart {
         pendingMaxBoostMultiplier = maxBoostMul;
         pendingMaxBoostablePct = maxBoostPct;
         pendingDecayBoostPct = decayPct;
-        paramChangeEpoch = uint16(getEpoch());
+        paramChangeEpoch = uint16(getDay());
 
-        emit BoostParamsSet(maxBoostMul, maxBoostPct, decayPct, getEpoch());
+        emit BoostParamsSet(maxBoostMul, maxBoostPct, decayPct, getDay());
         return true;
     }
 
@@ -186,7 +186,7 @@ contract BoostCalculator is CoreOwnable, SystemStart {
         uint256 previousAmount,
         uint256 totalEpochEmissions
     ) external returns (uint256 adjustedAmount) {
-        uint256 epoch = getEpoch();
+        uint256 epoch = getDay();
         if (epoch < MAX_BOOST_GRACE_EPOCHS) return amount;
         epoch -= 1;
 
@@ -233,7 +233,7 @@ contract BoostCalculator is CoreOwnable, SystemStart {
         uint256 previousAmount,
         uint256 totalEpochEmissions
     ) internal view returns (uint256 adjustedAmount, uint256 maxBoostable, uint256 fullDecay) {
-        uint256 epoch = getEpoch();
+        uint256 epoch = getDay();
         if (epoch < MAX_BOOST_GRACE_EPOCHS) {
             uint256 remaining = totalEpochEmissions - previousAmount;
             return (amount, remaining, remaining);
