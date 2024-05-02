@@ -26,7 +26,6 @@ contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
 
     IERC20 public immutable govToken;
     IIncentiveVoting public immutable incentiveVoter;
-    uint256 immutable LOCK_TO_TOKEN_RATIO;
 
     IEmissionSchedule public emissionSchedule;
     IBoostCalculator public boostCalculator;
@@ -119,7 +118,6 @@ contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
     ) CoreOwnable(core) SystemStart(core) {
         govToken = _token;
         incentiveVoter = _voter;
-        LOCK_TO_TOKEN_RATIO = 1;
 
         emissionSchedule = _emissionSchedule;
         boostCalculator = _boostCalculator;
@@ -491,7 +489,6 @@ contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
     ) external callerOrDelegated(account) returns (bool) {
         uint256 amount = pendingBoostDelegationFees[account];
         pendingBoostDelegationFees[account] = 0;
-        require(amount >= LOCK_TO_TOKEN_RATIO, "Nothing to claim");
         Delegation memory data = boostDelegation[receiver];
         if (data.hasReceiverCallback) {
             require(
