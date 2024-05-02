@@ -9,7 +9,6 @@ import "./dependencies/DelegatedOps.sol";
 import "./dependencies/SystemStart.sol";
 import "./interfaces/IEmissionSchedule.sol";
 import "./interfaces/IIncentiveVoting.sol";
-import "./interfaces/ITokenLocker.sol";
 import "./interfaces/IBoostCallback.sol";
 import "./interfaces/IBoostCalculator.sol";
 import "./interfaces/IEmissionReceiver.sol";
@@ -26,7 +25,6 @@ contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
     using SafeERC20 for IERC20;
 
     IERC20 public immutable govToken;
-    ITokenLocker public immutable tokenLocker;
     IIncentiveVoting public immutable incentiveVoter;
     uint256 immutable LOCK_TO_TOKEN_RATIO;
 
@@ -39,9 +37,6 @@ contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
     // most recent epoch that `unallocatedTotal` was reduced by a call to
     // `emissionSchedule.getTotalEpochEmissions`
     uint64 public totalUpdateEpoch;
-    // number of epochs that govToken is locked for when transferred using
-    // `transferAllocatedTokens`. updated each epoch by the emission schedule.
-    uint64 public lockDuration;
 
     // id -> receiver data
     uint16[65535] public receiverUpdatedEpoch;
@@ -115,19 +110,16 @@ contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
     constructor(
         address core,
         IERC20 _token,
-        ITokenLocker _locker,
         IIncentiveVoting _voter,
         IEmissionSchedule _emissionSchedule,
         IBoostCalculator _boostCalculator,
-        uint64 initialLockDuration,
         uint128[] memory _fixedInitialAmounts,
         InitialAllowance[] memory initialAllowances,
         InitialReceiver[] memory initialReceivers
     ) CoreOwnable(core) SystemStart(core) {
         govToken = _token;
-        tokenLocker = _locker;
         incentiveVoter = _voter;
-        LOCK_TO_TOKEN_RATIO = _locker.LOCK_TO_TOKEN_RATIO();
+        LOCK_TO_TOKEN_RATIO = 1;
 
         emissionSchedule = _emissionSchedule;
         boostCalculator = _boostCalculator;
@@ -157,7 +149,6 @@ contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
 
         unallocatedTotal = uint128(totalSupply - totalAllocated);
         totalUpdateEpoch = uint64(_fixedInitialAmounts.length);
-        lockDuration = initialLockDuration;
 
         emit EmissionScheduleSet(address(_emissionSchedule));
         emit BoostCalculatorSet(address(_boostCalculator));
@@ -379,12 +370,11 @@ contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
             return;
         }
 
-        uint256 lock;
         uint256 amount;
         uint256 unallocated = unallocatedTotal;
         while (epoch < currentEpoch) {
             ++epoch;
-            (amount, lock) = _emissionSchedule.getTotalEpochEmissions(epoch, unallocated);
+            (amount, ) = _emissionSchedule.getTotalEpochEmissions(epoch, unallocated);
             epochEmissions[epoch] = uint128(amount);
 
             unallocated = unallocated - amount;
@@ -393,7 +383,6 @@ contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
 
         unallocatedTotal = uint128(unallocated);
         totalUpdateEpoch = uint64(currentEpoch);
-        lockDuration = uint64(lock);
     }
 
     /**
@@ -518,7 +507,7 @@ contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
                 "Fee claim callback rejected"
             );
         }
-        _transferOrLock(account, receiver, amount);
+        govToken.transfer(receiver, amount);
         return true;
     }
 
@@ -580,7 +569,7 @@ contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
             // these effects were already applied to the stored value
             adjustedAmount += storedPendingReward[account];
 
-            _transferOrLock(account, receiver, adjustedAmount);
+            govToken.transfer(receiver, adjustedAmount);
 
             // apply delegate fee and optionally perform delegate callback
             if (fee != 0) {
@@ -613,19 +602,6 @@ contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
                 }
             }
             emit RewardClaimed(account, receiver, boostDelegate, amount, adjustedAmount, fee);
-        }
-    }
-
-    function _transferOrLock(address claimant, address receiver, uint256 amount) internal {
-        uint256 _lockDuration = lockDuration;
-        if (_lockDuration == 0) {
-            storedPendingReward[claimant] = 0;
-            govToken.transfer(receiver, amount);
-        } else {
-            // lock for receiver and store remaining balance in `storedPendingReward`
-            uint256 lockAmount = amount / LOCK_TO_TOKEN_RATIO;
-            storedPendingReward[claimant] = amount - lockAmount * LOCK_TO_TOKEN_RATIO;
-            if (lockAmount > 0) tokenLocker.lock(receiver, lockAmount, _lockDuration);
         }
     }
 
