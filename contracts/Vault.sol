@@ -49,13 +49,18 @@ contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
     // receiver -> remaining tokens which have been allocated but not yet distributed
     mapping(address => uint256) public receiverAllocated;
 
-    // account -> epoch -> govToken amount claimed in that epoch (used for calculating boost)
-    mapping(address => uint128[65535]) accountEpochEarned;
+    // claimant -> (claim day, total emissions claimed in that day)
+    mapping(address account => AccountEarned) private accountEarned;
 
     // pending fees from delegation for an address
     mapping(address => uint256) private pendingBoostDelegationFees;
 
     mapping(address => Delegation) public boostDelegation;
+
+    struct AccountEarned {
+        uint128 earned;
+        uint128 day;
+    }
 
     struct Receiver {
         address account;
@@ -186,9 +191,9 @@ contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
         address account
     ) external view returns (uint256 currentBoost, uint256 claimed, uint256 maxBoosted, uint256 boosted) {
         uint256 epoch = getWeek();
-        uint256 epochTotal = epochEmissions[epoch];
-        uint256 previousAmount = accountEpochEarned[account][epoch];
-        (currentBoost, maxBoosted, boosted) = boostCalculator.getAccountBoostData(account, previousAmount, epochTotal);
+        uint256 dailyTotal = epochEmissions[epoch] / 7;
+        uint256 previousAmount = _getPrevious(account);
+        (currentBoost, maxBoosted, boosted) = boostCalculator.getAccountBoostData(account, previousAmount, dailyTotal);
         return (currentBoost, previousAmount, maxBoosted, boosted);
     }
 
@@ -215,10 +220,9 @@ contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
         for (uint i = 0; i < rewardContracts.length; i++) {
             amount += rewardContracts[i].claimableReward(account);
         }
-        uint256 epoch = getWeek();
-        uint256 epochTotal = epochEmissions[epoch];
+        uint256 dailyTotal = epochEmissions[getWeek()] / 7;
         address claimant = boostDelegate == address(0) ? account : boostDelegate;
-        uint256 previousAmount = accountEpochEarned[claimant][epoch];
+        uint256 previousAmount = _getPrevious(claimant);
 
         uint256 fee;
         if (boostDelegate != address(0)) {
@@ -227,18 +231,18 @@ contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
             fee = data.feePct;
             if (fee == type(uint16).max) {
                 try
-                    data.callback.getFeePct(claimant, receiver, boostDelegate, amount, previousAmount, epochTotal)
+                    data.callback.getFeePct(claimant, receiver, boostDelegate, amount, previousAmount, dailyTotal)
                 returns (uint256 _fee) {
                     fee = _fee;
                 } catch {
                     return (0, 0);
                 }
             }
-            if (fee > MAX_PCT) return (0, 0);
+            if (fee > 10000) return (0, 0);
         }
 
-        adjustedAmount = boostCalculator.getBoostedAmount(claimant, amount, previousAmount, epochTotal);
-        fee = (adjustedAmount * fee) / MAX_PCT;
+        adjustedAmount = boostCalculator.getBoostedAmount(claimant, amount, previousAmount, dailyTotal);
+        fee = (adjustedAmount * fee) / 10000;
 
         return (adjustedAmount, fee);
     }
@@ -500,6 +504,11 @@ contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
         return true;
     }
 
+    function _getPrevious(address account) internal view returns (uint256) {
+        if (accountEarned[account].day == getDay()) return accountEarned[account].earned;
+        else return 0;
+    }
+
     function _transferAllocated(
         uint256 maxFeePct,
         address account,
@@ -508,10 +517,9 @@ contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
         uint256 amount
     ) internal {
         if (amount > 0) {
-            uint256 epoch = getWeek();
-            uint256 epochTotal = epochEmissions[epoch];
+            uint256 dailyTotal = epochEmissions[getWeek()] / 7;
             address claimant = boostDelegate == address(0) ? account : boostDelegate;
-            uint256 previousAmount = accountEpochEarned[claimant][epoch];
+            uint256 previousAmount = _getPrevious(claimant);
 
             // if boost delegation is active, get the fee and optional callback address
             uint256 fee;
@@ -521,7 +529,7 @@ contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
 
                 require(data.isDelegationEnabled, "Invalid delegate");
                 if (data.feePct == type(uint16).max) {
-                    fee = data.callback.getFeePct(account, receiver, boostDelegate, amount, previousAmount, epochTotal);
+                    fee = data.callback.getFeePct(account, receiver, boostDelegate, amount, previousAmount, dailyTotal);
                     require(fee <= MAX_PCT, "Invalid delegate fee");
                 } else fee = data.feePct;
                 require(fee <= maxFeePct, "fee exceeds maxFeePct");
@@ -533,7 +541,7 @@ contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
                 claimant,
                 amount,
                 previousAmount,
-                epochTotal
+                dailyTotal
             );
             {
                 // remaining tokens from unboosted claims are added to the unallocated total
@@ -545,7 +553,10 @@ contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
                     emit UnallocatedSupplyIncreased(boostUnclaimed, unallocated);
                 }
             }
-            accountEpochEarned[claimant][epoch] = uint128(previousAmount + amount);
+            accountEarned[claimant] = AccountEarned({
+                day: uint128(getDay()),
+                earned: uint128(previousAmount + amount)
+            });
 
             // apply boost delegation fee
             if (fee != 0) {
@@ -570,7 +581,7 @@ contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
                         adjustedAmount,
                         fee,
                         previousAmount,
-                        epochTotal
+                        dailyTotal
                     ),
                     "Delegate callback rejected"
                 );
