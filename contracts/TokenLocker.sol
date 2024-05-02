@@ -19,6 +19,8 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
     IGovToken public immutable govToken;
     IIncentiveVoting public immutable incentiveVoter;
 
+    uint256 public immutable EPOCH_LENGTH;
+
     bool public isPenaltyWithdrawalEnabled;
 
     struct AccountData {
@@ -86,11 +88,18 @@ contract TokenLocker is BaseConfig, CoreOwnable, SystemStart {
         address core,
         IGovToken _token,
         IIncentiveVoting _voter,
+        uint256 epochLength,
         bool _penaltyWithdrawalsEnabled
     ) CoreOwnable(core) SystemStart(core) {
         govToken = _token;
         incentiveVoter = _voter;
         isPenaltyWithdrawalEnabled = _penaltyWithdrawalsEnabled;
+
+        EPOCH_LENGTH = epochLength;
+    }
+
+    function getEpoch() public view returns (uint256) {
+        return (block.timestamp - START_TIME) / EPOCH_LENGTH;
     }
 
     modifier notFrozen(address account) {
