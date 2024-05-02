@@ -88,7 +88,7 @@ contract IncentiveVoting is BaseConfig, DelegatedOps, SystemStart {
     function registerNewReceiver() external returns (uint256) {
         require(msg.sender == vault);
         uint256 id = receiverCount + 1;
-        receiverUpdatedEpoch[id] = uint16(getEpoch());
+        receiverUpdatedEpoch[id] = uint16(getWeek());
         receiverCount = uint16(id);
         return id;
     }
@@ -110,7 +110,7 @@ contract IncentiveVoting is BaseConfig, DelegatedOps, SystemStart {
     }
 
     function getReceiverWeight(uint256 idx) external view returns (uint256) {
-        return getReceiverWeightAt(idx, getEpoch());
+        return getReceiverWeightAt(idx, getWeek());
     }
 
     function getReceiverWeightAt(uint256 idx, uint256 epoch) public view returns (uint256) {
@@ -132,7 +132,7 @@ contract IncentiveVoting is BaseConfig, DelegatedOps, SystemStart {
     }
 
     function getTotalWeight() external view returns (uint256) {
-        return getTotalWeightAt(getEpoch());
+        return getTotalWeightAt(getWeek());
     }
 
     function getTotalWeightAt(uint256 epoch) public view returns (uint256) {
@@ -153,7 +153,7 @@ contract IncentiveVoting is BaseConfig, DelegatedOps, SystemStart {
 
     function getReceiverWeightWrite(uint256 idx) public returns (uint256) {
         require(idx != 0 && idx <= receiverCount, "Invalid ID");
-        uint256 epoch = getEpoch();
+        uint256 epoch = getWeek();
         uint256 updatedEpoch = receiverUpdatedEpoch[idx];
         uint256 weight = receiverEpochWeights[idx][updatedEpoch];
         if (epoch == updatedEpoch) return weight;
@@ -178,7 +178,7 @@ contract IncentiveVoting is BaseConfig, DelegatedOps, SystemStart {
     }
 
     function getTotalWeightWrite() public returns (uint256) {
-        uint256 epoch = getEpoch();
+        uint256 epoch = getWeek();
         uint256 updatedEpoch = totalUpdatedEpoch;
         uint256 weight = totalEpochWeights[updatedEpoch];
 
@@ -256,7 +256,7 @@ contract IncentiveVoting is BaseConfig, DelegatedOps, SystemStart {
         // weights prior to updating the registered account weights
         if (accountData.voteLength > 0) {
             _removeVoteWeights(account, getAccountCurrentVotes(account), accountData.frozenWeight);
-            emit ClearedVotes(account, getEpoch());
+            emit ClearedVotes(account, getWeek());
         }
 
         // get updated account lock weights and store locally
@@ -292,7 +292,7 @@ contract IncentiveVoting is BaseConfig, DelegatedOps, SystemStart {
         // optionally clear previous votes
         if (clearPrevious) {
             _removeVoteWeights(account, getAccountCurrentVotes(account), frozenWeight);
-            emit ClearedVotes(account, getEpoch());
+            emit ClearedVotes(account, getWeek());
         } else {
             points = accountData.points;
             offset = accountData.voteLength;
@@ -314,7 +314,7 @@ contract IncentiveVoting is BaseConfig, DelegatedOps, SystemStart {
         accountData.voteLength = 0;
         accountData.points = 0;
 
-        emit ClearedVotes(account, getEpoch());
+        emit ClearedVotes(account, getWeek());
     }
 
     /**
@@ -329,7 +329,7 @@ contract IncentiveVoting is BaseConfig, DelegatedOps, SystemStart {
         );
 
         AccountData storage accountData = accountLockData[account];
-        uint256 epoch = getEpoch();
+        uint256 epoch = getWeek();
         uint256 length = accountData.lockLength;
         uint256 frozenWeight = accountData.frozenWeight;
         if (length > 0 || frozenWeight > 0) {
@@ -369,7 +369,7 @@ contract IncentiveVoting is BaseConfig, DelegatedOps, SystemStart {
                 _removeVoteWeightsFrozen(existingVotes, frozenWeight);
             }
 
-            uint256 epoch = getEpoch();
+            uint256 epoch = getWeek();
             accountData.epoch = uint16(epoch);
             accountData.frozenWeight = 0;
 
@@ -404,7 +404,7 @@ contract IncentiveVoting is BaseConfig, DelegatedOps, SystemStart {
         AccountData storage accountData = accountLockData[account];
 
         uint256 length = accountData.lockLength;
-        uint256 systemEpoch = getEpoch();
+        uint256 systemEpoch = getWeek();
         uint256 accountEpoch = accountData.frozenWeight > 0 ? systemEpoch : accountData.epoch;
         uint8[MAX_LOCK_EPOCHS] storage epochsToUnlock = accountData.epochsToUnlock;
         uint120[MAX_LOCK_EPOCHS] storage amounts = accountData.lockedAmounts;
@@ -449,7 +449,7 @@ contract IncentiveVoting is BaseConfig, DelegatedOps, SystemStart {
         } else {
             revert("No active locks");
         }
-        uint256 epoch = getEpoch();
+        uint256 epoch = getWeek();
         accountData.epoch = uint16(epoch);
         accountData.lockLength = uint8(length);
 
@@ -475,7 +475,7 @@ contract IncentiveVoting is BaseConfig, DelegatedOps, SystemStart {
         accountData.voteLength = uint16(offset + length);
         accountData.points = uint16(points);
 
-        emit NewVotes(account, getEpoch(), votes, points);
+        emit NewVotes(account, getWeek(), votes, points);
     }
 
     /**
@@ -516,7 +516,7 @@ contract IncentiveVoting is BaseConfig, DelegatedOps, SystemStart {
 
         uint256 totalWeight;
         uint256 totalDecay;
-        uint256 systemEpoch = getEpoch();
+        uint256 systemEpoch = getWeek();
         uint256[MAX_LOCK_EPOCHS + 1] memory epochUnlocks;
         for (uint256 i = 0; i < votes.length; i++) {
             uint256 id = votes[i].id;
@@ -550,7 +550,7 @@ contract IncentiveVoting is BaseConfig, DelegatedOps, SystemStart {
 
     /** @dev Should not be called directly, use `_addVoteWeights` */
     function _addVoteWeightsFrozen(Vote[] memory votes, uint256 frozenWeight) internal {
-        uint256 systemEpoch = getEpoch();
+        uint256 systemEpoch = getWeek();
         uint256 totalWeight;
         uint256 length = votes.length;
         for (uint256 i = 0; i < length; i++) {
@@ -573,7 +573,7 @@ contract IncentiveVoting is BaseConfig, DelegatedOps, SystemStart {
 
         uint256 totalWeight;
         uint256 totalDecay;
-        uint256 systemEpoch = getEpoch();
+        uint256 systemEpoch = getWeek();
         uint256[MAX_LOCK_EPOCHS + 1] memory epochUnlocks;
 
         for (uint256 i = 0; i < votes.length; i++) {
@@ -607,7 +607,7 @@ contract IncentiveVoting is BaseConfig, DelegatedOps, SystemStart {
 
     /** @dev Should not be called directly, use `_removeVoteWeights` */
     function _removeVoteWeightsFrozen(Vote[] memory votes, uint256 frozenWeight) internal {
-        uint256 systemEpoch = getEpoch();
+        uint256 systemEpoch = getWeek();
 
         uint256 totalWeight;
         uint256 length = votes.length;

@@ -101,7 +101,7 @@ abstract contract EmissionReceiverBase is IEmissionReceiver, SystemStart {
         uint256 id = receiverId;
         // do not try to allocate new emissions prior to the receiver being registered
         if (id != 0) {
-            uint256 epoch = getEpoch();
+            uint256 epoch = getWeek();
             if (epoch > emissionUpdateEpoch) {
                 emissionUpdateEpoch = epoch;
                 return vault.allocateNewEmissions(id);

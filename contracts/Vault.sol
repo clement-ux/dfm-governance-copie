@@ -171,7 +171,7 @@ contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
         @dev Changes to `unallocatedTotal` during the epoch can affect this number
      */
     function getExpectedNextEpochEmissions() external view returns (uint256) {
-        return emissionSchedule.getExpectedNextEpochEmissions(getEpoch() + 1, unallocatedTotal);
+        return emissionSchedule.getExpectedNextEpochEmissions(getWeek() + 1, unallocatedTotal);
     }
 
     /**
@@ -185,7 +185,7 @@ contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
     function getAccountBoostData(
         address account
     ) external view returns (uint256 currentBoost, uint256 claimed, uint256 maxBoosted, uint256 boosted) {
-        uint256 epoch = getEpoch();
+        uint256 epoch = getWeek();
         uint256 epochTotal = epochEmissions[epoch];
         uint256 previousAmount = accountEpochEarned[account][epoch];
         (currentBoost, maxBoosted, boosted) = boostCalculator.getAccountBoostData(account, previousAmount, epochTotal);
@@ -215,7 +215,7 @@ contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
         for (uint i = 0; i < rewardContracts.length; i++) {
             amount += rewardContracts[i].claimableReward(account);
         }
-        uint256 epoch = getEpoch();
+        uint256 epoch = getWeek();
         uint256 epochTotal = epochEmissions[epoch];
         address claimant = boostDelegate == address(0) ? account : boostDelegate;
         uint256 previousAmount = accountEpochEarned[claimant][epoch];
@@ -266,7 +266,7 @@ contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
     function _registerReceiver(address receiver, uint256 count, uint256[] memory maxEmissionPct) internal {
         require(maxEmissionPct.length == count, "Invalid maxEmissionPct.length");
         uint256[] memory assignedIds = new uint256[](count);
-        uint16 epoch = uint16(getEpoch());
+        uint16 epoch = uint16(getWeek());
         for (uint256 i = 0; i < count; i++) {
             uint256 maxPct = maxEmissionPct[i];
             if (maxPct == 0) maxPct = MAX_PCT;
@@ -309,7 +309,7 @@ contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
              The new schedule is applied from the start of the next epoch.
      */
     function setEmissionSchedule(IEmissionSchedule _emissionSchedule) external onlyOwner returns (bool) {
-        _allocateTotalEpoch(emissionSchedule, getEpoch());
+        _allocateTotalEpoch(emissionSchedule, getWeek());
         emissionSchedule = _emissionSchedule;
         emit EmissionScheduleSet(address(_emissionSchedule));
 
@@ -388,7 +388,7 @@ contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
         Receiver memory receiver = idToReceiver[id];
         require(receiver.account == msg.sender, "Receiver not registered");
         uint256 epoch = receiverUpdatedEpoch[id];
-        uint256 currentEpoch = getEpoch();
+        uint256 currentEpoch = getWeek();
         if (epoch == currentEpoch) return 0;
 
         IEmissionSchedule _emissionSchedule = emissionSchedule;
@@ -508,7 +508,7 @@ contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
         uint256 amount
     ) internal {
         if (amount > 0) {
-            uint256 epoch = getEpoch();
+            uint256 epoch = getWeek();
             uint256 epochTotal = epochEmissions[epoch];
             address claimant = boostDelegate == address(0) ? account : boostDelegate;
             uint256 previousAmount = accountEpochEarned[claimant][epoch];
