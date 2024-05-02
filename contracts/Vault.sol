@@ -53,8 +53,8 @@ contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
     // account -> epoch -> govToken amount claimed in that epoch (used for calculating boost)
     mapping(address => uint128[65535]) accountEpochEarned;
 
-    // pending rewards for an address (dust after locking, fees from delegation)
-    mapping(address => uint256) private storedPendingReward;
+    // pending fees from delegation for an address
+    mapping(address => uint256) private pendingBoostDelegationFees;
 
     mapping(address => Delegation) public boostDelegation;
 
@@ -243,15 +243,6 @@ contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
         fee = (adjustedAmount * fee) / MAX_PCT;
 
         return (adjustedAmount, fee);
-    }
-
-    /**
-        @notice Get the claimable amount that `claimant` has earned boost delegation fees
-     */
-    function getClaimableBoostDelegationFees(address claimant) external view returns (uint256 amount) {
-        amount = storedPendingReward[claimant];
-        // only return values `>= LOCK_TO_TOKEN_RATIO` so we do not report "dust" stored for normal users
-        return amount >= LOCK_TO_TOKEN_RATIO ? amount : 0;
     }
 
     /**
@@ -498,7 +489,8 @@ contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
         address account,
         address receiver
     ) external callerOrDelegated(account) returns (bool) {
-        uint256 amount = storedPendingReward[account];
+        uint256 amount = pendingBoostDelegationFees[account];
+        pendingBoostDelegationFees[account] = 0;
         require(amount >= LOCK_TO_TOKEN_RATIO, "Nothing to claim");
         Delegation memory data = boostDelegation[receiver];
         if (data.hasReceiverCallback) {
@@ -564,16 +556,11 @@ contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
                 adjustedAmount -= fee;
             }
 
-            // add `storedPendingReward` to `adjustedAmount`
-            // this happens after any boost modifiers or delegation fees, since
-            // these effects were already applied to the stored value
-            adjustedAmount += storedPendingReward[account];
-
             govToken.transfer(receiver, adjustedAmount);
 
             // apply delegate fee and optionally perform delegate callback
             if (fee != 0) {
-                storedPendingReward[boostDelegate] += fee;
+                pendingBoostDelegationFees[boostDelegate] += fee;
                 emit DelegateFeePaid(account, boostDelegate, fee);
             }
             if (address(delegateCallback) != address(0)) {
