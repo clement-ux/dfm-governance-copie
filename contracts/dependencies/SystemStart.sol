@@ -11,14 +11,16 @@ import "../interfaces/ICoreOwner.sol";
  */
 abstract contract SystemStart {
     uint256 immutable START_TIME;
-    uint256 immutable EPOCH_LENGTH;
 
     constructor(address core) {
         START_TIME = ICoreOwner(core).START_TIME();
-        EPOCH_LENGTH = ICoreOwner(core).EPOCH_LENGTH();
     }
 
-    function getEpoch() internal view returns (uint256 epoch) {
-        return (block.timestamp - START_TIME) / EPOCH_LENGTH;
+    function getWeek() internal view returns (uint256 epoch) {
+        return (block.timestamp - START_TIME) / 1 weeks;
+    }
+
+    function getDay() internal view returns (uint256 day) {
+        return (block.timestamp - START_TIME) / 1 days;
     }
 }
