@@ -24,12 +24,6 @@ contract CoreOwner {
     // System-wide start time. Contracts that require this must inherit `SystemStart`.
     uint256 public immutable START_TIME;
 
-    // Number of seconds within one "epoch" (a locking / voting period).
-    // Contracts permanently break from array out-of-bounds after 65535 epochs,
-    // so the duration of one epoch must be long enough that this issue will
-    // not occur until the distant future.
-    uint256 public immutable EPOCH_LENGTH;
-
     mapping(bytes32 identifier => address account) private addressRegistry;
 
     event NewOwnerCommitted(address owner, address pendingOwner, uint256 deadline);
@@ -37,19 +31,17 @@ contract CoreOwner {
     event NewOwnerRevoked(address owner, address revokedOwner);
 
     /**
-        @param epochLength Number of seconds within one epoch
-        @param startOffset Seconds to subtract when calculating `START_TIME`. With
-                           an epoch length of one week and 0 offset, the new epoch
-                           starts Thursday at 00:00:00 UTC. With an offset of 302400
-                           (3 days, 12 hours) the epoch starts Sunday at 12:00:00 UTC.
+        @param startOffset Seconds to subtract when calculating `START_TIME`. With 0
+                           offset, the new weekly epoch starts Thursday at 00:00:00 UTC.
+                           With an offset of 302400 (3 days, 12 hours) the epoch starts
+                           Sunday at 12:00:00 UTC.
      */
-    constructor(address _owner, address _feeReceiver, uint256 epochLength, uint256 startOffset) {
+    constructor(address _owner, address _feeReceiver, uint256 startOffset) {
         owner = _owner;
 
-        uint256 start = (block.timestamp / epochLength) * epochLength - startOffset;
-        if (start + epochLength < block.timestamp) start += epochLength;
+        uint256 start = (block.timestamp / 7 days) * 7 days - startOffset;
+        if (start + 7 days < block.timestamp) start += 7 days;
         START_TIME = start;
-        EPOCH_LENGTH = epochLength;
 
         addressRegistry[bytes32("FEE_RECEIVER")] = _feeReceiver;
     }
