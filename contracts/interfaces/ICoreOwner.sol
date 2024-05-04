@@ -9,7 +9,5 @@ interface ICoreOwner {
 
     function EPOCH_LENGTH() external view returns (uint256);
 
-    function feeReceiver() external view returns (address);
-
     function getAddress(bytes32 identifier) external view returns (address);
 }

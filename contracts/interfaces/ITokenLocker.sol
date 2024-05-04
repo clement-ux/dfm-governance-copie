@@ -38,8 +38,6 @@ interface ITokenLocker {
 
     function renounceOwnership() external;
 
-    function setFeeReceiver(address _receiver) external returns (bool);
-
     function setPenaltyWithdrawalsEnabled(bool _enabled) external returns (bool);
 
     function transferOwnership(address newOwner) external;
@@ -59,8 +57,6 @@ interface ITokenLocker {
     function MAX_PCT() external view returns (uint256);
 
     function START_TIME() external view returns (uint256);
-
-    function feeReceiver() external view returns (address);
 
     function getAccountActiveLocks(
         address account,

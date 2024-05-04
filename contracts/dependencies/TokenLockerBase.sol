@@ -831,7 +831,7 @@ abstract contract TokenLockerBase is CoreOwnable, SystemStart {
         totalDecayRate -= uint120(amountToWithdraw + penaltyTotal - unlocked);
 
         lockToken.transfer(msg.sender, amountToWithdraw);
-        lockToken.transfer(CORE_OWNER.feeReceiver(), penaltyTotal);
+        lockToken.transfer(CORE_OWNER.getAddress(bytes32("FEE_RECEIVER")), penaltyTotal);
         emit LocksWithdrawn(msg.sender, amountToWithdraw, penaltyTotal);
 
         return (amountToWithdraw, penaltyTotal);
