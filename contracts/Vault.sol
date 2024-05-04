@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./dependencies/CoreOwnable.sol";
 import "./dependencies/DelegatedOps.sol";
 import "./dependencies/SystemStart.sol";
+import "./interfaces/IERC20Mintable.sol";
 import "./interfaces/IEmissionSchedule.sol";
 import "./interfaces/IIncentiveVoting.sol";
 import "./interfaces/IBoostCallback.sol";
@@ -26,7 +27,7 @@ contract Vault is CoreOwnable, DelegatedOps, SystemStart {
     // Whole number representing 100% in the contracts
     uint256 public constant MAX_PCT = 10000;
 
-    IERC20 public immutable govToken;
+    IERC20Mintable public immutable govToken;
     IIncentiveVoting public immutable incentiveVoter;
 
     IEmissionSchedule public emissionSchedule;
@@ -92,6 +93,7 @@ contract Vault is CoreOwnable, DelegatedOps, SystemStart {
     event ReceiverMaxEmissionPctSet(uint256 indexed id, uint256 maxPct);
     event UnallocatedSupplyReduced(uint256 reducedAmount, uint256 unallocatedTotal);
     event UnallocatedSupplyIncreased(uint256 increasedAmount, uint256 unallocatedTotal);
+    event EpochEmissionsAdded(uint256 indexed epoch, uint256 amount);
     event IncreasedReceiverAllocation(address indexed receiver, uint256 increasedAmount);
     event EmissionScheduleSet(address emissionScheduler);
     event BoostCalculatorSet(address boostCalculator);
@@ -115,13 +117,13 @@ contract Vault is CoreOwnable, DelegatedOps, SystemStart {
 
     constructor(
         address core,
-        IERC20 _token,
-        IIncentiveVoting _voter,
+        IERC20Mintable _govToken,
+        IIncentiveVoting _incentiveVoter,
         IEmissionSchedule _emissionSchedule,
         IBoostCalculator _boostCalculator
     ) CoreOwnable(core) SystemStart(core) {
-        govToken = _token;
-        incentiveVoter = _voter;
+        govToken = _govToken;
+        incentiveVoter = _incentiveVoter;
 
         emissionSchedule = _emissionSchedule;
         boostCalculator = _boostCalculator;
@@ -317,6 +319,30 @@ contract Vault is CoreOwnable, DelegatedOps, SystemStart {
         return true;
     }
 
+    function notifyNewEmissions(uint256 amount) external returns (bool) {
+        // TODO guard this, callable via bridge (how to handle on root chain?)
+        govToken.mint(address(this), amount);
+        uint256 currentEpoch = getWeek();
+        uint256 unallocated = unallocatedTotal;
+
+        if (unallocated > 0) {
+            // increase epoch amount by unallocatedTotal, up to 2x
+            uint256 adjustment = unallocated > amount ? amount : unallocated;
+            unallocated -= adjustment;
+            amount += adjustment;
+            emit UnallocatedSupplyReduced(adjustment, unallocated);
+        }
+
+        uint256 updateEpoch = (totalUpdateEpoch < currentEpoch) ? currentEpoch : currentEpoch + 1;
+        epochEmissions[updateEpoch] += uint128(amount);
+        unallocatedTotal = uint128(unallocated);
+        totalUpdateEpoch = uint64(updateEpoch);
+
+        emit EpochEmissionsAdded(updateEpoch, amount);
+
+        return true;
+    }
+
     function _allocateTotalEpoch(IEmissionSchedule _emissionSchedule, uint256 currentEpoch) internal {
         uint256 epoch = totalUpdateEpoch;
         if (epoch >= currentEpoch) return;
@@ -355,24 +381,17 @@ contract Vault is CoreOwnable, DelegatedOps, SystemStart {
         Receiver memory receiver = idToReceiver[id];
         require(receiver.account == msg.sender, "Receiver not registered");
         uint256 epoch = receiverUpdatedEpoch[id];
-        uint256 currentEpoch = getWeek();
-        if (epoch == currentEpoch) return 0;
-
-        IEmissionSchedule _emissionSchedule = emissionSchedule;
-        _allocateTotalEpoch(_emissionSchedule, currentEpoch);
-
-        if (address(_emissionSchedule) == address(0)) {
-            receiverUpdatedEpoch[id] = uint16(currentEpoch);
-            return 0;
-        }
+        uint256 updatedEpoch = totalUpdateEpoch;
+        if (epoch == updatedEpoch) return 0;
 
         uint256 maxPct = receiver.maxEmissionPct;
         uint256 allocated;
         uint256 unallocated;
-        while (epoch < currentEpoch) {
+        while (epoch < updatedEpoch) {
             ++epoch;
+            uint256 pct = incentiveVoter.getReceiverVotePct(id, epoch);
             uint256 totalEpochEmissions = epochEmissions[epoch];
-            uint256 epochAmount = _emissionSchedule.getReceiverEpochEmissions(id, epoch, totalEpochEmissions);
+            uint256 epochAmount = (totalEpochEmissions * pct) / 1e18;
             if (maxPct < MAX_PCT) {
                 uint256 cappedAmount = (totalEpochEmissions * maxPct) / MAX_PCT;
                 if (epochAmount > cappedAmount) {
@@ -383,7 +402,7 @@ contract Vault is CoreOwnable, DelegatedOps, SystemStart {
             allocated = allocated + epochAmount;
         }
 
-        receiverUpdatedEpoch[id] = uint16(currentEpoch);
+        receiverUpdatedEpoch[id] = uint16(updatedEpoch);
 
         if (allocated > 0) {
             receiverAllocated[msg.sender] = receiverAllocated[msg.sender] + allocated;
