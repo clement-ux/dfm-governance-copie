@@ -19,7 +19,7 @@ contract TokenLocker is TokenLockerBase {
         IERC20 _token,
         IIncentiveVoting _voter,
         bool _penaltyWithdrawalsEnabled
-    ) TokenLockerBase(core, _token, 7 days, _penaltyWithdrawalsEnabled) {
+    ) TokenLockerBase(core, _token, 7 days, 52, _penaltyWithdrawalsEnabled) {
         incentiveVoter = _voter;
     }
 

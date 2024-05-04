@@ -28,7 +28,7 @@ contract LPLocker is TokenLockerBase {
         IERC20 _govToken,
         IERC20 _stableCoin,
         bool _penaltyWithdrawalsEnabled
-    ) TokenLockerBase(core, IERC20(lpToken), 1 days, _penaltyWithdrawalsEnabled) {
+    ) TokenLockerBase(core, IERC20(lpToken), 1 days, 30, _penaltyWithdrawalsEnabled) {
         govToken = _govToken;
         stableCoin = _stableCoin;
         require(ICurveV2(lpToken).coins(0) == _govToken);

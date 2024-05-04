@@ -17,6 +17,9 @@ abstract contract TokenLockerBase is BaseConfig, CoreOwnable, SystemStart {
 
     uint256 public immutable EPOCH_LENGTH;
 
+    // Maximum number of epochs that tokens may be locked for
+    uint256 public immutable MAX_LOCK_EPOCHS;
+
     bool public isPenaltyWithdrawalEnabled;
 
     struct AccountData {
@@ -84,12 +87,14 @@ abstract contract TokenLockerBase is BaseConfig, CoreOwnable, SystemStart {
         address core,
         IERC20 _token,
         uint256 epochLength,
+        uint256 maxLockEpochs,
         bool _penaltyWithdrawalsEnabled
     ) CoreOwnable(core) SystemStart(core) {
         lockToken = _token;
         isPenaltyWithdrawalEnabled = _penaltyWithdrawalsEnabled;
 
         EPOCH_LENGTH = epochLength;
+        MAX_LOCK_EPOCHS = maxLockEpochs;
     }
 
     function getEpoch() public view returns (uint256) {
