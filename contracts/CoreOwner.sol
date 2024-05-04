@@ -16,8 +16,6 @@ contract CoreOwner {
     address public pendingOwner;
     uint256 public ownershipTransferDeadline;
 
-    address public feeReceiver;
-
     // We enforce a three day delay between committing and accepting
     // an ownership change, as a sanity check on a proposed new owner
     // and to give users time to react in case the act is malicious.
@@ -32,13 +30,11 @@ contract CoreOwner {
     // not occur until the distant future.
     uint256 public immutable EPOCH_LENGTH;
 
+    mapping(bytes32 identifier => address account) private addressRegistry;
+
     event NewOwnerCommitted(address owner, address pendingOwner, uint256 deadline);
-
     event NewOwnerAccepted(address oldOwner, address owner);
-
     event NewOwnerRevoked(address owner, address revokedOwner);
-
-    event FeeReceiverSet(address feeReceiver);
 
     /**
         @param epochLength Number of seconds within one epoch
@@ -55,7 +51,7 @@ contract CoreOwner {
         START_TIME = start;
         EPOCH_LENGTH = epochLength;
 
-        feeReceiver = _feeReceiver;
+        addressRegistry[bytes32("FEE_RECEIVER")] = _feeReceiver;
     }
 
     modifier onlyOwner() {
@@ -63,13 +59,14 @@ contract CoreOwner {
         _;
     }
 
-    /**
-     * @notice Set the receiver of all fees across the protocol
-     * @param _feeReceiver Address of the fee's recipient
-     */
-    function setFeeReceiver(address _feeReceiver) external onlyOwner {
-        feeReceiver = _feeReceiver;
-        emit FeeReceiverSet(_feeReceiver);
+    function getAddress(bytes32 identifier) external view returns (address) {
+        address account = addressRegistry[identifier];
+        require(account != address(0), "No address for identifier");
+        return account;
+    }
+
+    function setAddress(bytes32 identifier, address account) external onlyOwner {
+        addressRegistry[identifier] = account;
     }
 
     function commitTransferOwnership(address newOwner) external onlyOwner {
