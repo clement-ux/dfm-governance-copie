@@ -116,10 +116,7 @@ contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
         IERC20 _token,
         IIncentiveVoting _voter,
         IEmissionSchedule _emissionSchedule,
-        IBoostCalculator _boostCalculator,
-        uint128[] memory _fixedInitialAmounts,
-        InitialAllowance[] memory initialAllowances,
-        InitialReceiver[] memory initialReceivers
+        IBoostCalculator _boostCalculator
     ) CoreOwnable(core) SystemStart(core) {
         govToken = _token;
         incentiveVoter = _voter;
@@ -127,44 +124,8 @@ contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
         emissionSchedule = _emissionSchedule;
         boostCalculator = _boostCalculator;
 
-        uint256 totalSupply = _token.totalSupply();
-        require(_token.balanceOf(address(this)) == totalSupply);
-
-        // set initial fixed epoch emissions
-        uint256 totalAllocated;
-        uint256 length = _fixedInitialAmounts.length;
-        for (uint256 i = 0; i < length; i++) {
-            uint128 amount = _fixedInitialAmounts[i];
-            // +1 because in the first epoch there are no votes, so no emissions possible
-            epochEmissions[i + 1] = amount;
-            totalAllocated += amount;
-        }
-
-        // set initial transfer allowances for e.g. airdrops, vests, team treasury
-        length = initialAllowances.length;
-        for (uint256 i = 0; i < length; i++) {
-            uint256 amount = initialAllowances[i].amount;
-            address receiver = initialAllowances[i].receiver;
-            totalAllocated += amount;
-            // initial allocations are given as approvals
-            govToken.approve(receiver, amount);
-        }
-
-        unallocatedTotal = uint128(totalSupply - totalAllocated);
-        totalUpdateEpoch = uint64(_fixedInitialAmounts.length);
-
         emit EmissionScheduleSet(address(_emissionSchedule));
         emit BoostCalculatorSet(address(_boostCalculator));
-        emit UnallocatedSupplyReduced(totalAllocated, unallocatedTotal);
-
-        length = initialReceivers.length;
-        for (uint i = 0; i < length; i++) {
-            _registerReceiver(
-                initialReceivers[i].receiver,
-                initialReceivers[i].count,
-                initialReceivers[i].maxEmissionPct
-            );
-        }
     }
 
     function receiverCount() external view returns (uint256) {
