@@ -3,7 +3,6 @@
 pragma solidity 0.8.23;
 
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "./dependencies/BaseConfig.sol";
 import "./dependencies/CoreOwnable.sol";
 import "./dependencies/DelegatedOps.sol";
 import "./dependencies/SystemStart.sol";
@@ -21,8 +20,11 @@ import "./interfaces/IEmissionReceiver.sol";
             vault gradually releases tokens to registered emissions receivers
             as determined by `EmissionSchedule` and `BoostCalculator`.
  */
-contract Vault is BaseConfig, CoreOwnable, DelegatedOps, SystemStart {
+contract Vault is CoreOwnable, DelegatedOps, SystemStart {
     using SafeERC20 for IERC20;
+
+    // Whole number representing 100% in the contracts
+    uint256 public constant MAX_PCT = 10000;
 
     IERC20 public immutable govToken;
     IIncentiveVoting public immutable incentiveVoter;

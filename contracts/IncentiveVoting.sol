@@ -2,7 +2,6 @@
 
 pragma solidity 0.8.23;
 
-import "./dependencies/BaseConfig.sol";
 import "./dependencies/DelegatedOps.sol";
 import "./dependencies/SystemStart.sol";
 import "./interfaces/ITokenLocker.sol";
@@ -14,9 +13,14 @@ import "./interfaces/ITokenLocker.sol";
             lock weights in this contract, and use this weight to vote on where
             new emissions will be released in the following epoch.
  */
-contract IncentiveVoting is BaseConfig, DelegatedOps, SystemStart {
+contract IncentiveVoting is DelegatedOps, SystemStart {
     ITokenLocker public immutable tokenLocker;
     address public immutable vault;
+
+    // Whole number representing 100% in the contracts
+    uint256 public constant MAX_PCT = 10000;
+    // Maximum number of epochs that tokens may be locked for
+    uint256 public constant MAX_LOCK_EPOCHS = 52;
 
     struct AccountData {
         // system epoch when the account's lock weights were registered

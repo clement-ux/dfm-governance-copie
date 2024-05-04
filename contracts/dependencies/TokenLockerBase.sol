@@ -5,14 +5,13 @@ pragma solidity 0.8.23;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./CoreOwnable.sol";
 import "./SystemStart.sol";
-import "./BaseConfig.sol";
 
 /**
     @title Token Locker Base
     @author Prisma Finance (with edits by defidotmoney)
     @notice Shared base for `TokenLocker` and `LPLocker`
  */
-abstract contract TokenLockerBase is BaseConfig, CoreOwnable, SystemStart {
+abstract contract TokenLockerBase is CoreOwnable, SystemStart {
     IERC20 public immutable lockToken;
 
     uint256 public immutable EPOCH_LENGTH;
