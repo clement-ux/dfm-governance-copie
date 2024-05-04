@@ -7,7 +7,6 @@ import "./dependencies/CoreOwnable.sol";
 import "./dependencies/DelegatedOps.sol";
 import "./dependencies/SystemStart.sol";
 import "./interfaces/IERC20Mintable.sol";
-import "./interfaces/IEmissionSchedule.sol";
 import "./interfaces/IIncentiveVoting.sol";
 import "./interfaces/IBoostCallback.sol";
 import "./interfaces/IBoostCalculator.sol";
@@ -30,7 +29,6 @@ contract Vault is CoreOwnable, DelegatedOps, SystemStart {
     IERC20Mintable public immutable govToken;
     IIncentiveVoting public immutable incentiveVoter;
 
-    IEmissionSchedule public emissionSchedule;
     IBoostCalculator public boostCalculator;
 
     // `govToken` balance within the treasury that is not yet allocated.
@@ -95,7 +93,6 @@ contract Vault is CoreOwnable, DelegatedOps, SystemStart {
     event UnallocatedSupplyIncreased(uint256 increasedAmount, uint256 unallocatedTotal);
     event EpochEmissionsAdded(uint256 indexed epoch, uint256 amount);
     event IncreasedReceiverAllocation(address indexed receiver, uint256 increasedAmount);
-    event EmissionScheduleSet(address emissionScheduler);
     event BoostCalculatorSet(address boostCalculator);
     event BoostDelegationSet(
         address indexed boostDelegate,
@@ -119,29 +116,17 @@ contract Vault is CoreOwnable, DelegatedOps, SystemStart {
         address core,
         IERC20Mintable _govToken,
         IIncentiveVoting _incentiveVoter,
-        IEmissionSchedule _emissionSchedule,
         IBoostCalculator _boostCalculator
     ) CoreOwnable(core) SystemStart(core) {
         govToken = _govToken;
         incentiveVoter = _incentiveVoter;
 
-        emissionSchedule = _emissionSchedule;
         boostCalculator = _boostCalculator;
-
-        emit EmissionScheduleSet(address(_emissionSchedule));
         emit BoostCalculatorSet(address(_boostCalculator));
     }
 
     function receiverCount() external view returns (uint256) {
         return incentiveVoter.receiverCount();
-    }
-
-    /**
-        @notice Get the current expected total emissions for the next epoch
-        @dev Changes to `unallocatedTotal` during the epoch can affect this number
-     */
-    function getExpectedNextEpochEmissions() external view returns (uint256) {
-        return emissionSchedule.getExpectedNextEpochEmissions(getWeek() + 1, unallocatedTotal);
     }
 
     /**
@@ -272,19 +257,6 @@ contract Vault is CoreOwnable, DelegatedOps, SystemStart {
         return true;
     }
 
-    /**
-        @notice Set the `emissionSchedule` contract
-        @dev Callable only by the owner (the DAO admin voter, to change the emission schedule).
-             The new schedule is applied from the start of the next epoch.
-     */
-    function setEmissionSchedule(IEmissionSchedule _emissionSchedule) external onlyOwner returns (bool) {
-        _allocateTotalEpoch(emissionSchedule, getWeek());
-        emissionSchedule = _emissionSchedule;
-        emit EmissionScheduleSet(address(_emissionSchedule));
-
-        return true;
-    }
-
     function setBoostCalculator(IBoostCalculator _boostCalculator) external onlyOwner returns (bool) {
         boostCalculator = _boostCalculator;
         emit BoostCalculatorSet(address(_boostCalculator));
@@ -341,30 +313,6 @@ contract Vault is CoreOwnable, DelegatedOps, SystemStart {
         emit EpochEmissionsAdded(updateEpoch, amount);
 
         return true;
-    }
-
-    function _allocateTotalEpoch(IEmissionSchedule _emissionSchedule, uint256 currentEpoch) internal {
-        uint256 epoch = totalUpdateEpoch;
-        if (epoch >= currentEpoch) return;
-
-        if (address(_emissionSchedule) == address(0)) {
-            totalUpdateEpoch = uint64(currentEpoch);
-            return;
-        }
-
-        uint256 amount;
-        uint256 unallocated = unallocatedTotal;
-        while (epoch < currentEpoch) {
-            ++epoch;
-            (amount, ) = _emissionSchedule.getTotalEpochEmissions(epoch, unallocated);
-            epochEmissions[epoch] = uint128(amount);
-
-            unallocated = unallocated - amount;
-            emit UnallocatedSupplyReduced(amount, unallocated);
-        }
-
-        unallocatedTotal = uint128(unallocated);
-        totalUpdateEpoch = uint64(currentEpoch);
     }
 
     /**
