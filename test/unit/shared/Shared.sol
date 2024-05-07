@@ -21,12 +21,12 @@ import {MockLpToken} from "../../utils/mocks/MockLpToken.sol";
 import {MockStableCoin} from "../../utils/mocks/MockStableCoin.sol";
 
 // Test imports
-//import {Modifiers} from "./Modifiers.sol";
+import {Modifiers} from "./Modifiers.sol";
 import {Base_Test_} from "../../Base.sol";
 import {Environment as ENV} from "../../utils/Environment.sol";
 import {DeploymentParams as DP} from "./DeploymentParameters.sol";
 
-abstract contract Unit_Shared_Test_ is Base_Test_ /*,Modifiers*/ {
+abstract contract Unit_Shared_Test_ is Modifiers {
     MockLpToken public lpToken;
     MockStableCoin public stableCoin;
 
