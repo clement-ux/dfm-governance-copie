@@ -9,4 +9,10 @@ contract Modifiers is Base_Test_ {
         _;
         vm.stopPrank();
     }
+
+    modifier commitTransferOwnership(address newOwner) {
+        vm.prank(coreOwner.owner());
+        coreOwner.commitTransferOwnership(newOwner);
+        _;
+    }
 }

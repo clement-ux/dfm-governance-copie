@@ -173,12 +173,6 @@ abstract contract Unit_Shared_Test_ is Modifiers {
         vm.stopPrank();
     }
 
-    modifier commitTransferOwnership(address newOwner) {
-        vm.prank(coreOwner.owner());
-        coreOwner.commitTransferOwnership(newOwner);
-        _;
-    }
-
     /*//////////////////////////////////////////////////////////////
                                 HELPERS
     //////////////////////////////////////////////////////////////*/
