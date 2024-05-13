@@ -42,7 +42,7 @@ library WizardTokenLocker {
 
     uint256 public constant ACCOUNT_EPOCH_WEIGHTS_MAPPING_SLOT_REF = 65537;
     uint256 public constant ACCOUNT_EPOCH_UNLOCK_MAPPING_SLOT_REF = 65538;
-    uint256 public constant ACCOUNT_LOCK_DATA_MAPPING_SLOT_REF = 655379;
+    uint256 public constant ACCOUNT_LOCK_DATA_MAPPING_SLOT_REF = 65539;
 
     /*//////////////////////////////////////////////////////////////
                               TOTAL VALUES
