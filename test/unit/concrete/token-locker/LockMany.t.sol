@@ -166,10 +166,10 @@ contract Unit_Concrete_TokenLocker_LockMany_ is Unit_Shared_Test_ {
     /// - Lock 1 token for 2 epochs and 2 token for 3 epochs.
     function test_LockMany_2Locks_GreaterThanWithPreviousLock_WhenUnlockHappen()
         public
-        lock(Modifier_Lock({skipBefore: 0, user: address(this), amountToLock: 1, duration: 5, skipAfter: 0}))
+        lock(Modifier_Lock({skipBefore: 0, user: address(this), amountToLock: 1 ether, duration: 5, skipAfter: 0}))
     {
         // No need to add assertions before as exactly the same as the test `Unit_Concrete_TokenLocker_Extend_::test_Extend_All_RightAfterLocking()`.
-        uint256 amountLockBefore = 1;
+        uint256 amountLockBefore = 1 ether;
         uint256 unlockTimestampBefore = 5;
         uint256 oldEpoch = (block.timestamp - startTime) / EPOCH_LENGTH;
 
@@ -201,7 +201,7 @@ contract Unit_Concrete_TokenLocker_LockMany_ is Unit_Shared_Test_ {
         assertEq(vm.getTotalEpochUnlockBySlotReading(address(tokenLocker), unlockEpoch2), locks[1].amount);
         assertEq(vm.getTotalEpochWeightBySlotReading(address(tokenLocker), currentEpoch), weight);
         // Account values
-        assertEq(vm.getAccountEpochWeightsBySlotReading(address(tokenLocker), address(this), currentEpoch - 2), 1);
+        assertEq(vm.getAccountEpochWeightsBySlotReading(address(tokenLocker), address(this), currentEpoch - 2), 1 ether);
         assertEq(vm.getAccountEpochWeightsBySlotReading(address(tokenLocker), address(this), currentEpoch - 1), 0);
         assertEq(vm.getAccountEpochWeightsBySlotReading(address(tokenLocker), address(this), currentEpoch), weight);
         assertEq(
@@ -231,11 +231,11 @@ contract Unit_Concrete_TokenLocker_LockMany_ is Unit_Shared_Test_ {
     /// - Lock 1 token for 2 epochs and 1 token for 4 epochs.
     function test_LockMany_2Locks_LowerAndGreaterThanWithPreviousLock_WhenUnlockNotHappen()
         public
-        lock(Modifier_Lock({skipBefore: 0, user: address(this), amountToLock: 1, duration: 5, skipAfter: 0}))
+        lock(Modifier_Lock({skipBefore: 0, user: address(this), amountToLock: 1 ether, duration: 5, skipAfter: 0}))
     {
         // No need to add assertions before as exactly the same as the test `Unit_Concrete_TokenLocker_Extend_::test_Extend_All_RightAfterLocking()`.
 
-        uint256 amountLockBefore = 1;
+        uint256 amountLockBefore = 1 ether;
         uint256 unlockTimestampBefore = 5;
         uint256 oldEpoch = (block.timestamp - startTime) / EPOCH_LENGTH; // 0
 
@@ -310,11 +310,11 @@ contract Unit_Concrete_TokenLocker_LockMany_ is Unit_Shared_Test_ {
     /// - Lock 1 token for 1 epochs and 2 token for 2 epochs.
     function test_LockMany_2Locks_LowerThanWithPreviousLock_WhenUnlockNotHappen()
         public
-        lock(Modifier_Lock({skipBefore: 0, user: address(this), amountToLock: 1, duration: 5, skipAfter: 0}))
+        lock(Modifier_Lock({skipBefore: 0, user: address(this), amountToLock: 1 ether, duration: 5, skipAfter: 0}))
     {
         // No need to add assertions before as exactly the same as the test `Unit_Concrete_TokenLocker_Extend_::test_Extend_All_RightAfterLocking()`.
 
-        uint256 amountLockBefore = 1;
+        uint256 amountLockBefore = 1 ether;
         uint256 unlockTimestampBefore = 5;
         uint256 oldEpoch = (block.timestamp - startTime) / EPOCH_LENGTH; // 0
 
@@ -390,10 +390,10 @@ contract Unit_Concrete_TokenLocker_LockMany_ is Unit_Shared_Test_ {
     /// This should result into 4 tokens locked until epoch 5.
     function test_LockMany_2Locks_BothOnAlreadyExistingLock_OneEpochAfterFirstLock()
         public
-        lock(Modifier_Lock({skipBefore: 0, user: address(this), amountToLock: 1, duration: 5, skipAfter: 0}))
+        lock(Modifier_Lock({skipBefore: 0, user: address(this), amountToLock: 1 ether, duration: 5, skipAfter: 0}))
     {
         // No need to add assertions before as exactly the same as the test `Unit_Concrete_TokenLocker_Extend_::test_Extend_All_RightAfterLocking()`.
-        uint256 amountLockBefore = 1;
+        uint256 amountLockBefore = 1 ether;
         uint256 unlockTimestampBefore = 5;
         uint256 oldEpoch = (block.timestamp - startTime) / EPOCH_LENGTH;
 
