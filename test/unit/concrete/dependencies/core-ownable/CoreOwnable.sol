@@ -23,7 +23,7 @@ contract Unit_Concrete_CoreOwnable_ is Unit_Shared_Test_ {
 
     function test_RevertWhen_OnlyOwner_Because_NotOwner() public {
         vm.expectRevert("Only owner");
-        coreOwnable.testModifier_OnlyOwner();
+        coreOwnable.tModifier_OnlyOwner();
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -39,6 +39,6 @@ contract Unit_Concrete_CoreOwnable_ is Unit_Shared_Test_ {
     }
 
     function test_onlyOwner() public asOwner {
-        assertTrue(coreOwnable.testModifier_OnlyOwner());
+        assertTrue(coreOwnable.tModifier_OnlyOwner());
     }
 }

@@ -6,7 +6,7 @@ import {CoreOwnable} from "../../../contracts/dependencies/CoreOwnable.sol";
 contract MockCoreOwnable is CoreOwnable {
     constructor(address _core) CoreOwnable(_core) {}
 
-    function testModifier_OnlyOwner() public onlyOwner view returns (bool) {
+    function tModifier_OnlyOwner() public view onlyOwner returns (bool) {
         return true;
     }
 }
