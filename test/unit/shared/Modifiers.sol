@@ -68,6 +68,16 @@ contract Modifiers is Base_Test_ {
         _;
     }
 
+    modifier enableWithdrawWithPenalty() {
+        _modifierEnableWithdrawWithPenalty();
+        _;
+    }
+
+    modifier disableWithdrawWithPenalty() {
+        _modifierDisableWithdrawWithPenalty();
+        _;
+    }
+
     /*//////////////////////////////////////////////////////////////
                                FUNCTIONS
     //////////////////////////////////////////////////////////////*/
@@ -114,5 +124,15 @@ contract Modifiers is Base_Test_ {
         vm.prank(_freeze.user);
         tokenLocker.freeze();
         skip(_freeze.skipAfter);
+    }
+
+    function _modifierEnableWithdrawWithPenalty() internal {
+        vm.prank(coreOwner.owner());
+        tokenLocker.setPenaltyWithdrawalEnabled(true);
+    }
+
+    function _modifierDisableWithdrawWithPenalty() internal {
+        vm.prank(coreOwner.owner());
+        tokenLocker.setPenaltyWithdrawalEnabled(false);
     }
 }
