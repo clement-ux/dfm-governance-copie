@@ -9,8 +9,6 @@ import {IIncentiveVoting} from "../../../../contracts/interfaces/IIncentiveVotin
 import {Unit_Shared_Test_} from "../../shared/Shared.sol";
 
 contract Unit_Concrete_TokenLocker_Constructor_ is Unit_Shared_Test_ {
-    uint256 internal startTime;
-
     /*//////////////////////////////////////////////////////////////
                                  SETUP
     //////////////////////////////////////////////////////////////*/
