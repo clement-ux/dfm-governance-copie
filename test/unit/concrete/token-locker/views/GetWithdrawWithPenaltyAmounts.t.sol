@@ -119,6 +119,4 @@ contract Unit_Concrete_TokenLocker_GetWithdrawWithPenaltyAmounts_ is Unit_Shared
         assertGe(withdrawAmount, penaltyAmount);
         assertNotEq(penaltyAmount, 0);
     }
-    /*
-    */
 }

@@ -796,7 +796,4 @@ contract Unit_Concrete_TokenLocker_Lock_ is Unit_Shared_Test_ {
             vm.getUpdateEpochsBySlotReading(address(tokenLocker), address(this), currentEpoch + lockDuration), false
         );
     }
-    /*
-
-    */
 }

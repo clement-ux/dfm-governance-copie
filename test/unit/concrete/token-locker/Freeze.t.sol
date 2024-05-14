@@ -42,6 +42,9 @@ contract Unit_Concrete_TokenLocker_Freeze_ is Unit_Shared_Test_ {
                             VALIDATING TESTS
     //////////////////////////////////////////////////////////////*/
 
+    /// @notice Test freeze, Using following conditions:
+    /// - No position.
+    /// - Freeze.
     function test_Freeze_NoPosition() public {
         vm.expectEmit({emitter: address(tokenLocker)});
         emit TokenLockerBase.LocksFrozen(address(this), 0);

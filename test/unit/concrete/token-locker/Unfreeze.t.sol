@@ -40,6 +40,10 @@ contract Unit_Concrete_TokenLocker_Unfreeze_ is Unit_Shared_Test_ {
                             VALIDATING TESTS
     //////////////////////////////////////////////////////////////*/
 
+    /// @notice Test the unfreeze function under the following conditions:
+    /// - No position.
+    /// - Freeze.
+    /// - Unfreeze.
     function test_Unfreeze_WithNoPosition()
         public
         freeze(Modifier_Freeze({skipBefore: 0, user: address(this), skipAfter: 0}))
@@ -53,6 +57,11 @@ contract Unit_Concrete_TokenLocker_Unfreeze_ is Unit_Shared_Test_ {
         assertEq(vm.getIsFrozenBySlotReading(address(tokenLocker), address(this)), false);
     }
 
+    /// @notice Test the unfreeze function under the following conditions:
+    /// - Lock.
+    /// - Freeze.
+    /// - Skip 0 epochs.
+    /// - Unfreeze.
     function test_Unfreeze_RightAfterLocking()
         public
         lock(Modifier_Lock({skipBefore: 0, user: address(this), amountToLock: 1 ether, duration: 5, skipAfter: 0}))

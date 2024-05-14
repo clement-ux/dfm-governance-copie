@@ -21,6 +21,9 @@ contract Unit_Concrete_TokenLocker_GetAccountWeightAt_ is Unit_Shared_Test_ {
                             VALIDATING TESTS
     //////////////////////////////////////////////////////////////*/
 
+    /// @notice Test the getAccountWeightAt function under the following conditions:
+    /// - No position.
+    /// - Get account weight for epoch 1 when at epoch 0.
     function test_GetAccountWeightAt_When_InFutur() public view {
         assertEq(tokenLocker.getAccountWeightAt(address(this), 1), 0);
     }
