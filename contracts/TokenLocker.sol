@@ -100,7 +100,8 @@ contract TokenLocker is TokenLockerBase {
 
         AccountData storage accountData = accountLockData[msg.sender];
         if (accountData.isFrozen) {
-            require(locks.length == 1 && locks[0].epochsToUnlock == MAX_LOCK_EPOCHS);
+            require(locks.length == 1, "Lock length should be 1");
+            require(locks[0].epochsToUnlock == MAX_LOCK_EPOCHS, "Epoch must be MAX_LOCK_EPOCHS");
             maxEpoch = MAX_LOCK_EPOCHS;
 
             decreasedAmount = locks[0].amount;
