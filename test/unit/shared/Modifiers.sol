@@ -87,8 +87,10 @@ contract Modifiers is Base_Test_ {
     function _modifierLock(Modifier_Lock memory _lock) internal {
         skip(_lock.skipBefore);
         deal(address(govToken), _lock.user, _lock.amountToLock * 1 ether);
-        vm.prank(_lock.user);
+        vm.startPrank(_lock.user);
+        govToken.approve(address(tokenLocker), MAX);
         tokenLocker.lock(_lock.user, _lock.amountToLock, _lock.duration);
+        vm.stopPrank();
         skip(_lock.skipAfter);
     }
 
