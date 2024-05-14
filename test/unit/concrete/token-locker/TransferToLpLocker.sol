@@ -13,6 +13,10 @@ import {WizardTokenLocker} from "../../../utils/WizardTokenLocker.sol";
 contract Unit_Concrete_TokenLocker_TransferToLpLocker_ is Unit_Shared_Test_ {
     using WizardTokenLocker for Vm;
 
+    /*//////////////////////////////////////////////////////////////
+                                 SETUP
+    //////////////////////////////////////////////////////////////*/
+
     function setUp() public virtual override {
         super.setUp();
 
@@ -44,6 +48,15 @@ contract Unit_Concrete_TokenLocker_TransferToLpLocker_ is Unit_Shared_Test_ {
         lockData[0] = TokenLockerBase.LockData(1, 53);
         vm.expectRevert("Exceeds MAX_LOCK_EPOCHS");
         tokenLocker.transferToLpLocker(lockData, 0, 0);
+    }
+
+    function test_RevertWhen_TransferToLpLocker_When_Frozen_Because_IncorrectLength()
+        public
+        lock(Modifier_Lock({skipBefore: 0, user: address(this), amountToLock: 1 ether, duration: 30, skipAfter: 0}))
+        freeze(Modifier_Freeze({skipBefore: 0, user: address(this), skipAfter: 0}))
+    {
+        vm.expectRevert("Lock length should be 1");
+        tokenLocker.transferToLpLocker(new TokenLockerBase.LockData[](2), 0, 0);
     }
 
     function test_RevertWhen_TransferToLpLocker_When_Frozen_Because_IncorrectEpoch()
@@ -90,6 +103,10 @@ contract Unit_Concrete_TokenLocker_TransferToLpLocker_ is Unit_Shared_Test_ {
         assertEq(vm.getIsFrozenBySlotReading(address(tokenLocker), address(this)), false);
         assertEq(vm.getEpochBySlotReading(address(tokenLocker), address(this)), 0);
         assertEq(vm.getUpdateEpochsBySlotReading(address(tokenLocker), address(this), 0), false);
+        // LpLocker values
+        (uint256 locked, uint256 unlocked) = lpLocker.getAccountBalances(address(this));
+        assertEq(locked, 1 ether);
+        assertEq(unlocked, 0);
     }
 
     /// @notice Test transferToLpLocker under following conditions:
@@ -121,6 +138,10 @@ contract Unit_Concrete_TokenLocker_TransferToLpLocker_ is Unit_Shared_Test_ {
         assertEq(vm.getIsFrozenBySlotReading(address(tokenLocker), address(this)), false);
         assertEq(vm.getEpochBySlotReading(address(tokenLocker), address(this)), 0);
         assertEq(vm.getUpdateEpochsBySlotReading(address(tokenLocker), address(this), 5), true);
+        (uint256 locked, uint256 unlocked) = lpLocker.getAccountBalances(address(this));
+        // LpLocker values
+        assertEq(locked, 0.5 ether);
+        assertEq(unlocked, 0);
     }
 
     /// @notice Test transferToLpLocker under following conditions:
@@ -157,6 +178,10 @@ contract Unit_Concrete_TokenLocker_TransferToLpLocker_ is Unit_Shared_Test_ {
         assertEq(vm.getEpochBySlotReading(address(tokenLocker), address(this)), 0);
         assertEq(vm.getUpdateEpochsBySlotReading(address(tokenLocker), address(this), 5), false);
         assertEq(vm.getUpdateEpochsBySlotReading(address(tokenLocker), address(this), 10), false);
+        // LpLocker values
+        (uint256 locked, uint256 unlocked) = lpLocker.getAccountBalances(address(this));
+        assertEq(locked, 3 ether);
+        assertEq(unlocked, 0);
     }
 
     /// @notice Test transferToLpLocker under following conditions:
@@ -193,6 +218,10 @@ contract Unit_Concrete_TokenLocker_TransferToLpLocker_ is Unit_Shared_Test_ {
         assertEq(vm.getEpochBySlotReading(address(tokenLocker), address(this)), 0);
         assertEq(vm.getUpdateEpochsBySlotReading(address(tokenLocker), address(this), 5), false);
         assertEq(vm.getUpdateEpochsBySlotReading(address(tokenLocker), address(this), 10), true);
+        // LpLocker values
+        (uint256 locked, uint256 unlocked) = lpLocker.getAccountBalances(address(this));
+        assertEq(locked, 1.5 ether);
+        assertEq(unlocked, 0);
     }
 
     /// @notice Test transferToLpLocker under following conditions:
@@ -229,20 +258,19 @@ contract Unit_Concrete_TokenLocker_TransferToLpLocker_ is Unit_Shared_Test_ {
         assertEq(vm.getIsFrozenBySlotReading(address(tokenLocker), address(this)), false);
         assertEq(vm.getEpochBySlotReading(address(tokenLocker), address(this)), 4);
         assertEq(vm.getUpdateEpochsBySlotReading(address(tokenLocker), address(this), 0), false);
+        // LpLocker values
+        (uint256 locked, uint256 unlocked) = lpLocker.getAccountBalances(address(this));
+        assertEq(locked, 1 ether);
+        assertEq(unlocked, 0);
     }
 
-    function test_RevertWhen_TransferToLpLocker_When_Frozen_Because_IncorrectLength()
-        public
-        lock(Modifier_Lock({skipBefore: 0, user: address(this), amountToLock: 1 ether, duration: 30, skipAfter: 0}))
-        freeze(Modifier_Freeze({skipBefore: 0, user: address(this), skipAfter: 0}))
-    {
-        vm.expectRevert("Lock length should be 1");
-        tokenLocker.transferToLpLocker(new TokenLockerBase.LockData[](2), 0, 0);
-    }
-
+    /// @notice Test transferToLpLocker under following conditions:
+    /// - Lock 1 ether for 5 epochs
+    /// - Freeze the account
+    /// - Transfer 1 ether to LpLocker
     function test_TransferToLpLocker_When_Frozen_FullPosition()
         public
-        lock(Modifier_Lock({skipBefore: 0, user: address(this), amountToLock: 1 ether, duration: 30, skipAfter: 0}))
+        lock(Modifier_Lock({skipBefore: 0, user: address(this), amountToLock: 1 ether, duration: 5, skipAfter: 0}))
         freeze(Modifier_Freeze({skipBefore: 0, user: address(this), skipAfter: 0}))
     {
         uint256 maxEpochs = tokenLocker.MAX_LOCK_EPOCHS();
@@ -267,11 +295,19 @@ contract Unit_Concrete_TokenLocker_TransferToLpLocker_ is Unit_Shared_Test_ {
         assertEq(vm.getIsFrozenBySlotReading(address(tokenLocker), address(this)), true);
         assertEq(vm.getEpochBySlotReading(address(tokenLocker), address(this)), 0);
         assertEq(vm.getUpdateEpochsBySlotReading(address(tokenLocker), address(this), maxEpochs), false);
+        // LpLocker values
+        (uint256 locked, uint256 unlocked) = lpLocker.getAccountBalances(address(this));
+        assertEq(locked, 1 ether);
+        assertEq(unlocked, 0);
     }
 
+    /// @notice Test transferToLpLocker under following conditions:
+    /// - Lock 1 ether for 5 epochs
+    /// - Freeze the account
+    /// - Transfer 0.5 ether to LpLocker
     function test_TransferToLpLocker_When_Frozen_HalfPosition()
         public
-        lock(Modifier_Lock({skipBefore: 0, user: address(this), amountToLock: 1 ether, duration: 30, skipAfter: 0}))
+        lock(Modifier_Lock({skipBefore: 0, user: address(this), amountToLock: 1 ether, duration: 5, skipAfter: 0}))
         freeze(Modifier_Freeze({skipBefore: 0, user: address(this), skipAfter: 0}))
     {
         uint256 maxEpochs = tokenLocker.MAX_LOCK_EPOCHS();
@@ -296,5 +332,9 @@ contract Unit_Concrete_TokenLocker_TransferToLpLocker_ is Unit_Shared_Test_ {
         assertEq(vm.getIsFrozenBySlotReading(address(tokenLocker), address(this)), true);
         assertEq(vm.getEpochBySlotReading(address(tokenLocker), address(this)), 0);
         assertEq(vm.getUpdateEpochsBySlotReading(address(tokenLocker), address(this), maxEpochs), false);
+        // LpLocker values
+        (uint256 locked, uint256 unlocked) = lpLocker.getAccountBalances(address(this));
+        assertEq(locked, 0.5 ether);
+        assertEq(unlocked, 0);
     }
 }
