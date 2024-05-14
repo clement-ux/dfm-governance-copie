@@ -2,7 +2,6 @@
 pragma solidity 0.8.23;
 
 import {Vm} from "forge-std/Vm.sol";
-import {console} from "forge-std/console.sol";
 
 import {TokenLocker} from "../../../../contracts/TokenLocker.sol";
 import {TokenLockerBase} from "../../../../contracts/dependencies/TokenLockerBase.sol";

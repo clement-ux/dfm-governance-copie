@@ -2,8 +2,6 @@
 pragma solidity 0.8.23;
 
 import {Vm} from "forge-std/Vm.sol";
-import {console} from "forge-std/console.sol";
-import {stdError} from "forge-std/StdError.sol";
 
 import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 

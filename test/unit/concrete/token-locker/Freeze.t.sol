@@ -2,8 +2,6 @@
 pragma solidity 0.8.23;
 
 import {Vm} from "forge-std/Vm.sol";
-import {console} from "forge-std/console.sol";
-import {stdError} from "forge-std/StdError.sol";
 
 import {TokenLockerBase} from "../../../../contracts/dependencies/TokenLockerBase.sol";
 import {Unit_Shared_Test_} from "../../shared/Shared.sol";
