@@ -11,7 +11,7 @@ library DeploymentParams {
     /// @notice Seconds to subtract when calculating `START_TIME`. With an epoch length
     /// of one week, an offset of 3.5 days means that a new epoch begins every
     /// Sunday at 12:00:00 UTC.
-    uint256 public constant START_OFFSET = 0;
+    uint256 public constant START_OFFSET = 3.5 days;
 
     /*//////////////////////////////////////////////////////////////
                           2. GOVERNANCE TOKEN

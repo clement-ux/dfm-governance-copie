@@ -46,7 +46,7 @@ interface ITokenLocker {
 
     function withdrawExpiredLocks(uint256 _epochs) external returns (bool);
 
-    function withdrawWithPenalty(uint256 amountToWithdraw) external returns (uint256);
+    function withdrawWithPenalty(uint256 amountToWithdraw) external returns (uint256, uint256);
 
     function EPOCH_LENGTH() external view returns (uint256);
 

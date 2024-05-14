@@ -19,4 +19,14 @@ contract MockLpToken is ERC20 {
     function burn(address from, uint256 value) public virtual {
         _burn(from, value);
     }
+
+    function add_liquidity(uint256[2] calldata _amounts, uint256 _min_mint_amount) external returns (uint256) {
+        coins[0].transferFrom(msg.sender, address(this), _amounts[0]);
+        coins[1].transferFrom(msg.sender, address(this), _amounts[1]);
+        return _min_mint_amount;
+    }
+
+    function price_oracle() external pure returns (uint256) {
+        return 1e18;
+    }
 }
