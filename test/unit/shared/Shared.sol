@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 // DAO contracts
 import {Vault} from "../../../contracts/Vault.sol";
@@ -28,9 +28,6 @@ import {Environment as ENV} from "../../utils/Environment.sol";
 import {DeploymentParams as DP} from "./DeploymentParameters.sol";
 
 abstract contract Unit_Shared_Test_ is Modifiers {
-    MockLpToken public lpToken;
-    MockStableCoin public stableCoin;
-
     /*//////////////////////////////////////////////////////////////
                                 STRUCTS
     //////////////////////////////////////////////////////////////*/
@@ -118,7 +115,6 @@ abstract contract Unit_Shared_Test_ is Modifiers {
         // 3.3 Stablecoin
         vm.setNonce(deployer, uint8(DI.stableCoin.nonce));
         stableCoin = new MockStableCoin(DP.STABLE_NAME, DP.STABLE_SYMBOL);
-
 
         // 3.4 LP Token
         vm.setNonce(deployer, uint8(DI.lpToken.nonce));
