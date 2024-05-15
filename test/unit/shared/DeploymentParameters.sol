@@ -92,7 +92,7 @@ library DeploymentParams {
     uint256 public constant BOOST_GRACE_EPOCHS = 2;
 
     /// @notice max boost multiplier
-    uint8 public constant MAX_BOOST_MULTIPLIER = 2;
+    uint8 public constant MAX_BOOST_MULTIPLIER = 10;
 
     /// @notice percentage of the total epoch emissions that an account can claim with max
     /// boost, expressed as a percent relative to the account's percent of the total
