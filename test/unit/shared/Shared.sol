@@ -12,6 +12,7 @@ import {TokenLocker} from "../../../contracts/TokenLocker.sol";
 import {BoostCalculator} from "../../../contracts/BoostCalculator.sol";
 import {IncentiveVoting} from "../../../contracts/IncentiveVoting.sol";
 
+import {ILPLocker} from "../../../contracts/interfaces/ILPLocker.sol";
 import {ITokenLocker} from "../../../contracts/interfaces/ITokenLocker.sol";
 import {IERC20Mintable} from "../../../contracts/interfaces/IERC20Mintable.sol";
 import {IBoostCalculator} from "../../../contracts/interfaces/IBoostCalculator.sol";
@@ -163,7 +164,7 @@ abstract contract Unit_Shared_Test_ is Modifiers {
         vm.setNonce(deployer, uint8(DI.boostCalculator.nonce));
         boostCalculator = new BoostCalculator(
             DI.coreOwner.predicted,
-            ITokenLocker(DI.tokenLocker.predicted),
+            ILPLocker(DI.lpLocker.predicted),
             DP.BOOST_GRACE_EPOCHS,
             DP.MAX_BOOST_MULTIPLIER,
             DP.MAX_BOOSTABLE_PCT,

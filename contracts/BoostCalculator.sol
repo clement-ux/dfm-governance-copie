@@ -2,7 +2,7 @@
 
 pragma solidity 0.8.23;
 
-import "./interfaces/ITokenLocker.sol";
+import "./interfaces/ILPLocker.sol";
 import "./dependencies/CoreOwnable.sol";
 import "./dependencies/SystemStart.sol";
 
@@ -58,7 +58,7 @@ import "./dependencies/SystemStart.sol";
             emissions of future epochs.
  */
 contract BoostCalculator is CoreOwnable, SystemStart {
-    ITokenLocker public immutable tokenLocker;
+    ILPLocker public immutable lpLocker;
 
     // initial number of epochs where all accounts recieve max boost
     uint256 public immutable MAX_BOOST_GRACE_EPOCHS;
@@ -97,13 +97,13 @@ contract BoostCalculator is CoreOwnable, SystemStart {
 
     constructor(
         address _core,
-        ITokenLocker _locker,
+        ILPLocker _locker,
         uint256 _graceEpochs,
         uint8 _maxBoostMul,
         uint16 _maxBoostPct,
         uint16 _decayPct
     ) CoreOwnable(_core) SystemStart(_core) {
-        tokenLocker = _locker;
+        lpLocker = _locker;
         MAX_BOOST_GRACE_EPOCHS = _graceEpochs + getDay();
 
         maxBoostMultiplier = _maxBoostMul;
@@ -206,12 +206,12 @@ contract BoostCalculator is CoreOwnable, SystemStart {
         if (lockPct == 0) {
             uint256 totalWeight = totalEpochWeights[epoch];
             if (totalWeight == 0) {
-                totalWeight = tokenLocker.getTotalWeightAt(epoch);
+                totalWeight = lpLocker.getTotalWeightAt(epoch);
                 if (totalWeight == 0) totalWeight = 1;
                 totalEpochWeights[epoch] = uint40(totalWeight);
             }
 
-            uint256 accountWeight = tokenLocker.getAccountWeightAt(account, epoch);
+            uint256 accountWeight = lpLocker.getAccountWeightAt(account, epoch);
             lockPct = (1e9 * accountWeight) / totalWeight;
             if (lockPct == 0) lockPct = 1;
             accountEpochLockPct[account][epoch] = uint32(lockPct);
@@ -240,8 +240,8 @@ contract BoostCalculator is CoreOwnable, SystemStart {
         }
         epoch -= 1;
 
-        uint256 accountWeight = tokenLocker.getAccountWeightAt(account, epoch);
-        uint256 totalWeight = tokenLocker.getTotalWeightAt(epoch);
+        uint256 accountWeight = lpLocker.getAccountWeightAt(account, epoch);
+        uint256 totalWeight = lpLocker.getTotalWeightAt(epoch);
         if (totalWeight == 0) totalWeight = 1;
         uint256 lockPct = (1e9 * accountWeight) / totalWeight;
         if (lockPct == 0) lockPct = 1;
