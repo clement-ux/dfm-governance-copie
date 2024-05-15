@@ -1,15 +1,23 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
 import {Base_Test_} from "../../Base.sol";
 import {TokenLockerBase} from "../../../contracts/dependencies/TokenLockerBase.sol";
 
+import {MockLpToken} from "../../utils/mocks/MockLpToken.sol";
+import {MockStableCoin} from "../../utils/mocks/MockStableCoin.sol";
+
 contract Modifiers is Base_Test_ {
+    MockLpToken public lpToken;
+    MockStableCoin public stableCoin;
+
     /*//////////////////////////////////////////////////////////////
                                 STRUCTS
     //////////////////////////////////////////////////////////////*/
 
-    // --- Locker ---
+    // --- Token Locker ---
 
     struct Modifier_Lock {
         uint256 skipBefore;
@@ -33,6 +41,15 @@ contract Modifiers is Base_Test_ {
         uint256 skipAfter;
     }
 
+    // --- Boost Calculator ---
+    struct Modifier_SetBoostParams {
+        uint256 skipBefore;
+        uint8 maxBoostMul;
+        uint16 maxBoostPct;
+        uint16 decayPct;
+        uint256 skipAfter;
+    }
+
     /*//////////////////////////////////////////////////////////////
                                MODIFIERS
     //////////////////////////////////////////////////////////////*/
@@ -51,10 +68,10 @@ contract Modifiers is Base_Test_ {
         _;
     }
 
-    // --- Locker ---
+    // --- Token Locker ---
 
     modifier lock(Modifier_Lock memory _lock) {
-        _modifierLock(_lock);
+        _modifierLock(_lock, IERC20(address(govToken)));
         _;
     }
 
@@ -78,19 +95,45 @@ contract Modifiers is Base_Test_ {
         _;
     }
 
+    // --- LP Locker ---
+    modifier lockLP(Modifier_Lock memory _lock) {
+        _modifierLock(_lock, IERC20(address(lpToken)));
+        _;
+    }
+
+    // --- Boost Calculator ---
+
+    modifier setBoostParams(Modifier_SetBoostParams memory _sbp) {
+        _modifierSetBoostParams(_sbp);
+        _;
+    }
+
     /*//////////////////////////////////////////////////////////////
                                FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    // --- Locker ---
+    // --- Token Locker ---
 
-    function _modifierLock(Modifier_Lock memory _lock) internal {
+    function _modifierLock(Modifier_Lock memory _lock, IERC20 _token) internal {
+        // Timejump before
         skip(_lock.skipBefore);
-        deal(address(govToken), _lock.user, _lock.amountToLock * 1 ether);
+
+        // Deal tokens to user
+        deal(address(_token), _lock.user, _lock.amountToLock);
+
+        // As user
         vm.startPrank(_lock.user);
-        govToken.approve(address(tokenLocker), MAX);
-        tokenLocker.lock(_lock.user, _lock.amountToLock, _lock.duration);
+        // Approve and Lock tokens
+        if (address(_token) == address(govToken)) {
+            govToken.approve(address(tokenLocker), MAX);
+            tokenLocker.lock(_lock.user, _lock.amountToLock, _lock.duration);
+        } else if (address(_token) == address(lpToken)) {
+            lpToken.approve(address(lpLocker), MAX);
+            lpLocker.lock(_lock.user, _lock.amountToLock, _lock.duration);
+        }
         vm.stopPrank();
+
+        // Timejump after
         skip(_lock.skipAfter);
     }
 
@@ -136,5 +179,15 @@ contract Modifiers is Base_Test_ {
     function _modifierDisableWithdrawWithPenalty() internal {
         vm.prank(coreOwner.owner());
         tokenLocker.setPenaltyWithdrawalEnabled(false);
+    }
+
+    // --- Boost Calculator ---
+
+    function _modifierSetBoostParams(Modifier_SetBoostParams memory _sbp) internal {
+        skip(_sbp.skipBefore);
+        vm.startPrank(coreOwner.owner());
+        boostCalculator.setBoostParams(_sbp.maxBoostMul, _sbp.maxBoostPct, _sbp.decayPct);
+        vm.stopPrank();
+        skip(_sbp.skipAfter);
     }
 }
