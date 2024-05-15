@@ -65,7 +65,7 @@ contract BoostCalculator is CoreOwnable, SystemStart {
 
     // epoch -> total epoch lock weight
     // tracked locally to avoid repeated external calls
-    uint40[65535] totalEpochWeights;
+    uint128[65535] totalEpochWeights;
     // account -> epoch -> % of lock weight (where 1e9 represents 100%)
     mapping(address account => uint32[65535]) accountEpochLockPct;
 
@@ -208,7 +208,7 @@ contract BoostCalculator is CoreOwnable, SystemStart {
             if (totalWeight == 0) {
                 totalWeight = lpLocker.getTotalWeightAt(epoch);
                 if (totalWeight == 0) totalWeight = 1;
-                totalEpochWeights[epoch] = uint40(totalWeight);
+                totalEpochWeights[epoch] = uint128(totalWeight);
             }
 
             uint256 accountWeight = lpLocker.getAccountWeightAt(account, epoch);
