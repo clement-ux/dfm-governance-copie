@@ -50,6 +50,15 @@ contract Modifiers is Base_Test_ {
         uint256 skipAfter;
     }
 
+    struct Modifier_GetBoostedAmountWrite {
+        uint256 skipBefore;
+        address account;
+        uint256 amount;
+        uint256 previousAmount;
+        uint256 totalEpochEmissions;
+        uint256 skipAfter;
+    }
+
     /*//////////////////////////////////////////////////////////////
                                MODIFIERS
     //////////////////////////////////////////////////////////////*/
@@ -105,6 +114,11 @@ contract Modifiers is Base_Test_ {
 
     modifier setBoostParams(Modifier_SetBoostParams memory _sbp) {
         _modifierSetBoostParams(_sbp);
+        _;
+    }
+
+    modifier getBoostedAmountWrite(Modifier_GetBoostedAmountWrite memory _gbaw) {
+        _modifierGetBoostedAmountWrite(_gbaw);
         _;
     }
 
@@ -189,5 +203,13 @@ contract Modifiers is Base_Test_ {
         boostCalculator.setBoostParams(_sbp.maxBoostMul, _sbp.maxBoostPct, _sbp.decayPct);
         vm.stopPrank();
         skip(_sbp.skipAfter);
+    }
+
+    function _modifierGetBoostedAmountWrite(Modifier_GetBoostedAmountWrite memory _gbaw) internal {
+        skip(_gbaw.skipBefore);
+        boostCalculator.getBoostedAmountWrite(
+            _gbaw.account, _gbaw.amount, _gbaw.previousAmount, _gbaw.totalEpochEmissions
+        );
+        skip(_gbaw.skipAfter);
     }
 }
