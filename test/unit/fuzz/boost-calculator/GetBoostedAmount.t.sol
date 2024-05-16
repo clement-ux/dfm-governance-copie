@@ -32,17 +32,17 @@ import {Unit_Shared_Test_} from "../../shared/Shared.sol";
  *
  */
 contract Unit_Fuzz_BoostCalculator_GetBoostedAmount_ is Unit_Shared_Test_ {
+    uint256 totalSupply = 1e18;
+    uint256 decayPct = 10000;
+    uint256 maxBoostPct = 10000;
+
     function test_Fuzz_GetBoostedAmount(
         uint256 amount,
         uint256 previousAmount,
         uint256 lockPct,
         uint256 maxBoostMul,
         uint256 totalEpochEmissions
-    ) public pure {
-        uint256 totalSupply = 1e18;
-        uint256 decayPct = 10000;
-        uint256 maxBoostPct = 10000;
-
+    ) public view {
         // Cannot claim more than total supply
         amount = _bound(amount, 0, totalSupply);
 
