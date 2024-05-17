@@ -31,7 +31,7 @@ import {Unit_Shared_Test_} from "../../shared/Shared.sol";
  *      |       maxBoostable       fullDecay
  *
  */
-contract Unit_Concrete_BoostCalculator_GetBoostedAmountWrite_ is Unit_Shared_Test_ {
+contract Unit_Fuzz_BoostCalculator_GetBoostedAmountWrite_ is Unit_Shared_Test_ {
     /*//////////////////////////////////////////////////////////////
                                CONSTANTS
     //////////////////////////////////////////////////////////////*/
