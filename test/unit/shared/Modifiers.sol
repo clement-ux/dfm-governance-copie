@@ -3,13 +3,13 @@ pragma solidity 0.8.23;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import {Base_Test_} from "../../Base.sol";
+import {Helpers} from "./Helpers.sol";
 import {TokenLockerBase} from "../../../contracts/dependencies/TokenLockerBase.sol";
 
 import {MockLpToken} from "../../utils/mocks/MockLpToken.sol";
 import {MockStableCoin} from "../../utils/mocks/MockStableCoin.sol";
 
-contract Modifiers is Base_Test_ {
+contract Modifiers is Helpers {
     MockLpToken public lpToken;
     MockStableCoin public stableCoin;
 

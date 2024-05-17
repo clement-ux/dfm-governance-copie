@@ -39,24 +39,6 @@ contract Unit_Concrete_BoostCalculator_GetBoostedAmountWrite_ is Unit_Shared_Tes
     }
 
     /*//////////////////////////////////////////////////////////////
-                    HELPERS (need to be moved elsewhere)
-    //////////////////////////////////////////////////////////////*/
-
-    function getDay() public view returns (uint256) {
-        return (block.timestamp - coreOwner.START_TIME()) / 1 days;
-    }
-
-    function getBoostable(uint256 totalEpochEmissions, uint256 lockPct, uint256 maxBoostPct, uint256 decayPct)
-        public
-        pure
-        returns (uint256, uint256)
-    {
-        uint256 maxBoostable = (totalEpochEmissions * lockPct * maxBoostPct) / 1e11;
-        uint256 fullDecay = maxBoostable + (totalEpochEmissions * lockPct * decayPct) / 1e11;
-        return (maxBoostable, fullDecay);
-    }
-
-    /*//////////////////////////////////////////////////////////////
                             VALIDATING TESTS
     //////////////////////////////////////////////////////////////*/
 
