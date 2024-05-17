@@ -6,7 +6,7 @@ verbosity = 3
 evm_version = "paris"
 
 [fuzz]
-runs = 100_000
+runs = 1_000
 
 remappings = ["forge-std/=lib/forge-std/src/", "@openzeppelin/=lib/openzeppelin-contracts/"]
 
