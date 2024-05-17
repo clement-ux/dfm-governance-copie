@@ -87,6 +87,7 @@ abstract contract Unit_Shared_Test_ is Modifiers {
 
     function _generateAddresses() internal {
         alice = makeAddr("alice");
+        carole = makeAddr("carole");
         manager = makeAddr("manager");
         deployer = makeAddr("deployer");
         multisig = makeAddr("multisig");
