@@ -90,7 +90,7 @@ contract IncentiveVoting is DelegatedOps, SystemStart {
     }
 
     function registerNewReceiver() external returns (uint256) {
-        require(msg.sender == vault);
+        require(msg.sender == vault, "Only Vault");
         uint256 id = receiverCount + 1;
         receiverUpdatedEpoch[id] = uint16(getWeek());
         receiverCount = uint16(id);
