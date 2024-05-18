@@ -122,6 +122,13 @@ contract Modifiers is Helpers {
         _;
     }
 
+    // --- Incentive Voting ---
+
+    modifier addReceiver() {
+        _modifierAddReceiver;
+        _;
+    }
+
     /*//////////////////////////////////////////////////////////////
                                FUNCTIONS
     //////////////////////////////////////////////////////////////*/
@@ -211,5 +218,11 @@ contract Modifiers is Helpers {
             _gbaw.account, _gbaw.amount, _gbaw.previousAmount, _gbaw.totalEpochEmissions
         );
         skip(_gbaw.skipAfter);
+    }
+
+    // --- Incentive Voting ---
+    function _modifierAddReceiver() internal {
+        vm.prank(incentiveVoting.vault());
+        incentiveVoting.registerNewReceiver();
     }
 }
