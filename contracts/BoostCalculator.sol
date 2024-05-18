@@ -150,7 +150,7 @@ contract BoostCalculator is CoreOwnable, SystemStart {
         uint256 previousAmount,
         uint256 totalEpochEmissions
     ) external view returns (uint256 currentBoost, uint256 maxBoosted, uint256 boosted) {
-        return _getAccountBoostData(account, maxBoostMultiplier * 10000, previousAmount, totalEpochEmissions);
+        return _getAccountBoostData(account, uint256(maxBoostMultiplier) * 10000, previousAmount, totalEpochEmissions);
     }
 
     /**
