@@ -89,10 +89,10 @@ library DeploymentParams {
     /// @notice number of initial epochs where all claims recieve maximum boost
     /// should be >=2, because in the first epoch there are no emissions and in the second
     /// epoch users have not have a chance to lock yet
-    uint256 public constant BOOST_GRACE_EPOCHS = 2;
+    uint256 public constant BOOST_GRACE_EPOCHS = 30;
 
     /// @notice max boost multiplier
-    uint8 public constant MAX_BOOST_MULTIPLIER = 2;
+    uint8 public constant MAX_BOOST_MULTIPLIER = 10;
 
     /// @notice percentage of the total epoch emissions that an account can claim with max
     /// boost, expressed as a percent relative to the account's percent of the total

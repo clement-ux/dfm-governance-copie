@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 // DAO contracts
 import {Vault} from "../../../contracts/Vault.sol";
@@ -12,6 +12,7 @@ import {TokenLocker} from "../../../contracts/TokenLocker.sol";
 import {BoostCalculator} from "../../../contracts/BoostCalculator.sol";
 import {IncentiveVoting} from "../../../contracts/IncentiveVoting.sol";
 
+import {ILPLocker} from "../../../contracts/interfaces/ILPLocker.sol";
 import {ITokenLocker} from "../../../contracts/interfaces/ITokenLocker.sol";
 import {IERC20Mintable} from "../../../contracts/interfaces/IERC20Mintable.sol";
 import {IBoostCalculator} from "../../../contracts/interfaces/IBoostCalculator.sol";
@@ -27,9 +28,6 @@ import {Environment as ENV} from "../../utils/Environment.sol";
 import {DeploymentParams as DP} from "./DeploymentParameters.sol";
 
 abstract contract Unit_Shared_Test_ is Modifiers {
-    MockLpToken public lpToken;
-    MockStableCoin public stableCoin;
-
     /*//////////////////////////////////////////////////////////////
                                 STRUCTS
     //////////////////////////////////////////////////////////////*/
@@ -89,6 +87,7 @@ abstract contract Unit_Shared_Test_ is Modifiers {
 
     function _generateAddresses() internal {
         alice = makeAddr("alice");
+        carole = makeAddr("carole");
         manager = makeAddr("manager");
         deployer = makeAddr("deployer");
         multisig = makeAddr("multisig");
@@ -117,7 +116,6 @@ abstract contract Unit_Shared_Test_ is Modifiers {
         // 3.3 Stablecoin
         vm.setNonce(deployer, uint8(DI.stableCoin.nonce));
         stableCoin = new MockStableCoin(DP.STABLE_NAME, DP.STABLE_SYMBOL);
-
 
         // 3.4 LP Token
         vm.setNonce(deployer, uint8(DI.lpToken.nonce));
@@ -163,7 +161,7 @@ abstract contract Unit_Shared_Test_ is Modifiers {
         vm.setNonce(deployer, uint8(DI.boostCalculator.nonce));
         boostCalculator = new BoostCalculator(
             DI.coreOwner.predicted,
-            ITokenLocker(DI.tokenLocker.predicted),
+            ILPLocker(DI.lpLocker.predicted),
             DP.BOOST_GRACE_EPOCHS,
             DP.MAX_BOOST_MULTIPLIER,
             DP.MAX_BOOSTABLE_PCT,

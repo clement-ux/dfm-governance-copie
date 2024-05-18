@@ -24,6 +24,7 @@ abstract contract Base_Test_ is Test, Constants {
     IncentiveVoting public incentiveVoting;
 
     address public alice;
+    address public carole;
     address public manager;
     address public deployer;
     address public multisig;
