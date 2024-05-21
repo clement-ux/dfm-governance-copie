@@ -9,7 +9,7 @@ import {Unit_Shared_Test_} from "../../shared/Shared.sol";
 import {WizardIncentiveVoting} from "../../../utils/WizardIncentiveVoting.sol";
 
 contract Unit_Concrete_IncentiveVoting_RegisterNewReceiver_ is Unit_Shared_Test_ {
-    using WizardIncentiveVoting for Vm;
+    using WizardIncentiveVoting for IncentiveVoting;
 
     /*//////////////////////////////////////////////////////////////
                             REVERTING TESTS
@@ -33,7 +33,7 @@ contract Unit_Concrete_IncentiveVoting_RegisterNewReceiver_ is Unit_Shared_Test_
         uint256 epoch = getWeek();
         // Assertion before
         assertEq(incentiveVoting.receiverCount(), 0);
-        assertEq(vm.getReceiverUpdateEpochBySlotReading(address(incentiveVoting), 1), 0);
+        assertEq(incentiveVoting.getReceiverUpdateEpochBySlotReading(1), 0);
 
         // Main call
         vm.prank(incentiveVoting.vault());
@@ -42,6 +42,6 @@ contract Unit_Concrete_IncentiveVoting_RegisterNewReceiver_ is Unit_Shared_Test_
         // Assertion after
         assertEq(id, 1);
         assertEq(incentiveVoting.receiverCount(), 1);
-        assertEq(vm.getReceiverUpdateEpochBySlotReading(address(incentiveVoting), 1), epoch);
+        assertEq(incentiveVoting.getReceiverUpdateEpochBySlotReading(1), epoch);
     }
 }
