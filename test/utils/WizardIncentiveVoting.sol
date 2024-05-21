@@ -4,7 +4,11 @@ pragma solidity 0.8.23;
 import {Vm} from "forge-std/Vm.sol";
 import {SlotFinder} from "./SlotFinder.sol";
 
+import {IncentiveVoting} from "../../contracts/IncentiveVoting.sol";
+
 library WizardIncentiveVoting {
+    Vm private constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
+
     /*//////////////////////////////////////////////////////////////
                             SLOT REFERENCES
     //////////////////////////////////////////////////////////////*/
@@ -41,12 +45,12 @@ library WizardIncentiveVoting {
     /// lockLength --------------------------------|
     /// voteLenght --------------------------------|-> 0
     ///
-    /// activeVotes -------------------------------| -> 1 -> 20000 (2 values per slots, 1 slot per array, 10000 arrays in total)
-    ///                                                            (need (1 + 1) * 10000 - 1 = 19999 slots in total)
-    /// lockedAmounts -----------------------------| -> 20001 -> 25001 (2 values per slots, 5000 slots per array, 1 arrays in total)
-    ///                                                                (need 5000 slots in total)
-    /// epochsToUnlock ----------------------------| -> 25002 ->  25033 (32 values per slots, 31 slots per array, 1 arrays in total)
-    ///                                                                 (need 31 slots in total)
+    /// activeVotes -------------------------------| -> 1 -> 10000 (2 values per slots, 1 slot per array, 10000 arrays in total)
+    ///                                                            (need 10000 slots in total)
+    /// lockedAmounts -----------------------------| -> 10001 -> 10026 (2 values per slots, 26 slots per array, 1 arrays in total)
+    ///                                                                (need 26 slots in total)
+    /// epochsToUnlock ----------------------------| -> 10027 ->  10029 (32 values per slots, 2 slots per array, 1 arrays in total)
+    ///                                                                 (need 32 slots in total)
     /// -----------------------------------------------------------------------------------------------------------------------------------
 
     uint256 public constant IS_APPROVED_DELEGATE_SLOT_REF = 0;
@@ -72,8 +76,8 @@ library WizardIncentiveVoting {
     uint256 public constant LOCK_DATA_LOCK_LENGTH = 0;
     uint256 public constant LOCK_DATA_VOTE_LENGTH = 0;
     uint256 public constant LOCK_DATA_ACTIVE_VOTES = 1;
-    uint256 public constant LOCK_DATA_LOCKED_AMOUNTS = 20001;
-    uint256 public constant LOCK_DATA_EPOCHS_TO_UNLOCK = 25002;
+    uint256 public constant LOCK_DATA_LOCKED_AMOUNTS = 10001;
+    uint256 public constant LOCK_DATA_EPOCHS_TO_UNLOCK = 10027;
 
     /*//////////////////////////////////////////////////////////////
                             RECEIVER VALUES
@@ -82,7 +86,7 @@ library WizardIncentiveVoting {
     /// @notice Get the decay rate of a receiver
     /// @param _contract The contract address
     /// @param _id The receiver id
-    function getReceiverDecayRateBySlotReading(Vm vm, address _contract, uint256 _id) public view returns (uint120) {
+    function getReceiverDecayRateBySlotReading(IncentiveVoting _contract, uint256 _id) public view returns (uint120) {
         uint256 valuePerSlot = 2; // How many uint120 fit in a slot? 256 / 120 = 2.
         uint256 level = _id / valuePerSlot;
         bytes32 slot = bytes32(RECEIVER_DECAY_RATE_ARRAY_SLOT_REF + level);
@@ -94,7 +98,7 @@ library WizardIncentiveVoting {
     /// @notice Get the updated epoch of a receiver
     /// @param _contract The contract address
     /// @param _id The receiver id
-    function getReceiverUpdateEpochBySlotReading(Vm vm, address _contract, uint256 _id) public view returns (uint16) {
+    function getReceiverUpdateEpochBySlotReading(IncentiveVoting _contract, uint256 _id) public view returns (uint16) {
         uint256 valuePerSlot = 16; // How many uint16 fit in a slot? 256 / 16 = 16.
         uint256 level = _id / valuePerSlot;
         bytes32 slot = bytes32(RECEIVER_UPDATED_EPOCH_ARRAY_SLOT_REF + level);
@@ -103,9 +107,53 @@ library WizardIncentiveVoting {
         return uint16(uint256((data << (256 - offSet * 16) >> (256 - 16))));
     }
 
+    /// @notice Get the epoch weight for a receiver
+    /// @param _contract The contract address
+    /// @param _id The receiver id
+    /// @param _epoch The epoch
+    function getReceiverEpochWeightsBySlotReading(IncentiveVoting _contract, uint256 _id, uint256 _epoch)
+        public
+        view
+        returns (uint128)
+    {
+        uint256 valuePerSlot = 2; // How many uint128 fit in a slot? 256 / 128 = 2.
+        uint256 level = (_id) * (65535 + 1) / valuePerSlot + _epoch / valuePerSlot;
+        bytes32 slot = bytes32(RECEIVER_EPOCH_WEIGHTS_ARRAY_SLOT_REF + level);
+        uint256 offSet = _epoch % valuePerSlot + 1;
+        bytes32 data = vm.load(address(_contract), slot);
+        return uint128(uint256((data << (256 - offSet * 128) >> (256 - 128))));
+    }
+
     /// @notice Get the count of receivers registered in the contract
-    function getReceiverCount(Vm vm, address _contract) public view returns (uint256) {
+    function getReceiverCount(address _contract) public view returns (uint256) {
         return uint256(vm.load(address(_contract), bytes32(RECEIVER_COUNT_SLOT_REF)));
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                              TOTAL VALUES
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Get lastest total update epoch
+    /// @param _contract The contract address
+    function getTotalUpdateEpochBySlotReading(IncentiveVoting _contract) public view returns (uint16) {
+        bytes32 slot = bytes32(TOTAL_UPDATED_EPOCH_SLOT_REF);
+        return uint16(uint256(vm.load(address(_contract), slot) << (256 - (16 + 120 + 16)) >> (256 - 16)));
+    }
+
+    /// @notice Get the total epoch weight
+    /// @param _contract The contract address
+    /// @param _epoch The epoch
+    function getTotalEpochWeightsBySlotReading(IncentiveVoting _contract, uint256 _epoch)
+        public
+        view
+        returns (uint128)
+    {
+        uint256 valuePerSlot = 2; // How many uint128 fit in a slot? 256 / 128 = 2.
+        uint256 level = _epoch / valuePerSlot;
+        bytes32 slot = bytes32(TOTAL_EPOCH_WEIGHTS_ARRAY_SLOT_REF + level);
+        uint256 offSet = _epoch % valuePerSlot + 1;
+        bytes32 data = vm.load(address(_contract), slot);
+        return uint128(uint256((data << (256 - offSet * 128) >> (256 - 128))));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -115,7 +163,7 @@ library WizardIncentiveVoting {
     /// @notice Get the epoch of a lock data
     /// @param _contract The contract address
     /// @param _account The account address
-    function getLockDataEpochBySlotReading(Vm vm, address _contract, address _account) public view returns (uint16) {
+    function getLockDataEpochBySlotReading(IncentiveVoting _contract, address _account) public view returns (uint16) {
         return uint16(
             uint256(
                 vm.load(
@@ -132,7 +180,7 @@ library WizardIncentiveVoting {
     /// @notice Get the frozen weight of a lock data
     /// @param _contract The contract address
     /// @param _account The account address
-    function getLockDataFrozenWeightBySlotReading(Vm vm, address _contract, address _account)
+    function getLockDataFrozenWeightBySlotReading(IncentiveVoting _contract, address _account)
         public
         view
         returns (uint128)
@@ -153,7 +201,7 @@ library WizardIncentiveVoting {
     /// @notice Get the points of a lock data
     /// @param _contract The contract address
     /// @param _account The account address
-    function getLockDataPointsBySlotReading(Vm vm, address _contract, address _account) public view returns (uint16) {
+    function getLockDataPointsBySlotReading(IncentiveVoting _contract, address _account) public view returns (uint16) {
         return uint16(
             uint256(
                 vm.load(
@@ -170,7 +218,7 @@ library WizardIncentiveVoting {
     /// @notice Get the lock length of a lock data
     /// @param _contract The contract address
     /// @param _account The account address
-    function getLockDataLockLengthBySlotReading(Vm vm, address _contract, address _account)
+    function getLockDataLockLengthBySlotReading(IncentiveVoting _contract, address _account)
         public
         view
         returns (uint8)
@@ -191,12 +239,12 @@ library WizardIncentiveVoting {
     /// @notice Get the vote length of a lock data
     /// @param _contract The contract address
     /// @param _account The account address
-    function getLockDataVoteLengthBySlotReading(Vm vm, address _contract, address _account)
+    function getLockDataVoteLengthBySlotReading(IncentiveVoting _contract, address _account)
         public
         view
-        returns (uint8)
+        returns (uint16)
     {
-        return uint8(
+        return uint16(
             uint256(
                 vm.load(
                     address(_contract),
@@ -204,7 +252,7 @@ library WizardIncentiveVoting {
                         uint256(SlotFinder.getMappingElementSlotIndex(_account, ACCOUNT_LOCK_DATA_SLOT_REF))
                             + LOCK_DATA_EPOCH
                     )
-                ) << (256 - (16 + 128 + 16 + 8)) >> (256 - 8)
+                ) << (256 - (16 + 128 + 16 + 8 + 16)) >> (256 - 16)
             )
         );
     }
@@ -214,11 +262,13 @@ library WizardIncentiveVoting {
     /// @param _account The account address
     /// @param _id The receiver id
     /// @return votes -> [receiverId, points]
-    function getLockDataActiveVotesBySlotReading(Vm vm, address _contract, address _account, uint256 _id)
+    function getLockDataActiveVotesBySlotReading(IncentiveVoting _contract, address _account, uint256 _id)
         public
         view
         returns (uint16[2] memory votes)
     {
+        require(_id > 0, "WizardIncentiveVoting: Invalid id");
+
         bytes32 firstSlot = bytes32(
             uint256(SlotFinder.getMappingElementSlotIndex(_account, ACCOUNT_LOCK_DATA_SLOT_REF))
                 + LOCK_DATA_ACTIVE_VOTES
@@ -230,8 +280,8 @@ library WizardIncentiveVoting {
         uint16 receiverId;
         uint16 points;
 
-        receiverId = uint16(uint256(data << (256 - (16 + 16)) >> (256 - 16)));
-        points = uint16(uint256(data << (256 - 16) >> (256 - 16)));
+        receiverId = uint16(uint256(data << (256 - 16)) >> (256 - 16));
+        points = uint16(uint256(data << (256 - (16 + 16)) >> (256 - 16)));
         return [receiverId, points];
     }
 
@@ -239,7 +289,7 @@ library WizardIncentiveVoting {
     /// @param _contract The contract address
     /// @param _account The account address
     /// @param _epoch The epoch
-    function getLockDataLockedAmountsBySlotReading(Vm vm, address _contract, address _account, uint256 _epoch)
+    function getLockDataLockedAmountsBySlotReading(IncentiveVoting _contract, address _account, uint256 _epoch)
         public
         view
         returns (uint120)
@@ -261,7 +311,7 @@ library WizardIncentiveVoting {
     /// @param _contract The contract address
     /// @param _account The account address
     /// @param _epoch The epoch
-    function getLockDataEpochsToUnlockBySlotReading(Vm vm, address _contract, address _account, uint256 _epoch)
+    function getLockDataEpochsToUnlockBySlotReading(IncentiveVoting _contract, address _account, uint256 _epoch)
         public
         view
         returns (uint8)
