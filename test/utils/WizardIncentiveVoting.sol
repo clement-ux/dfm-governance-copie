@@ -124,6 +124,23 @@ library WizardIncentiveVoting {
         return uint128(uint256((data << (256 - offSet * 128) >> (256 - 128))));
     }
 
+    /// @notice Get the epoch weight for a receiver
+    /// @param _contract The contract address
+    /// @param _id The receiver id
+    /// @param _epoch The epoch
+    function getReceiverEpocUnlocksBySlotReading(IncentiveVoting _contract, uint256 _id, uint256 _epoch)
+        public
+        view
+        returns (uint120)
+    {
+        uint256 valuePerSlot = 2; // How many uint120 fit in a slot? 256 / 120 = 2.
+        uint256 level = (_id) * (65535 + 1) / valuePerSlot + _epoch / valuePerSlot;
+        bytes32 slot = bytes32(RECEIVER_EPOCH_UNLOCKS_ARRAY_SLOT_REF + level);
+        uint256 offSet = _epoch % valuePerSlot + 1;
+        bytes32 data = vm.load(address(_contract), slot);
+        return uint120(uint256((data << (256 - offSet * 120) >> (256 - 120))));
+    }
+
     /// @notice Get the count of receivers registered in the contract
     function getReceiverCount(address _contract) public view returns (uint256) {
         return uint256(vm.load(address(_contract), bytes32(RECEIVER_COUNT_SLOT_REF)));
@@ -133,11 +150,25 @@ library WizardIncentiveVoting {
                               TOTAL VALUES
     //////////////////////////////////////////////////////////////*/
 
+    /// @notice Get the total decay rate
+    /// @param _contract The contract address
+    function getTotalDecayRateBySlotReading(IncentiveVoting _contract) public view returns (uint120) {
+        return uint120(
+            uint256(
+                vm.load(address(_contract), bytes32(TOTAL_DECAY_RATE_SLOT_REF)) << (256 - (16 + 120)) >> (256 - 120)
+            )
+        );
+    }
+
     /// @notice Get lastest total update epoch
     /// @param _contract The contract address
     function getTotalUpdateEpochBySlotReading(IncentiveVoting _contract) public view returns (uint16) {
-        bytes32 slot = bytes32(TOTAL_UPDATED_EPOCH_SLOT_REF);
-        return uint16(uint256(vm.load(address(_contract), slot) << (256 - (16 + 120 + 16)) >> (256 - 16)));
+        return uint16(
+            uint256(
+                vm.load(address(_contract), bytes32(TOTAL_UPDATED_EPOCH_SLOT_REF)) << (256 - (16 + 120 + 16))
+                    >> (256 - 16)
+            )
+        );
     }
 
     /// @notice Get the total epoch weight
@@ -154,6 +185,22 @@ library WizardIncentiveVoting {
         uint256 offSet = _epoch % valuePerSlot + 1;
         bytes32 data = vm.load(address(_contract), slot);
         return uint128(uint256((data << (256 - offSet * 128) >> (256 - 128))));
+    }
+
+    /// @notice Get the total epoch unlocks
+    /// @param _contract The contract address
+    /// @param _epoch The epoch
+    function getTotalEpochUnlocksBySlotReading(IncentiveVoting _contract, uint256 _epoch)
+        public
+        view
+        returns (uint120)
+    {
+        uint256 valuePerSlot = 2; // How many uint120 fit in a slot? 256 / 120 = 2.
+        uint256 level = _epoch / valuePerSlot;
+        bytes32 slot = bytes32(TOTAL_EPOCH_UNLOCKS_ARRAY_SLOT_REF + level);
+        uint256 offSet = _epoch % valuePerSlot + 1;
+        bytes32 data = vm.load(address(_contract), slot);
+        return uint120(uint256((data << (256 - offSet * 120) >> (256 - 120))));
     }
 
     /*//////////////////////////////////////////////////////////////
