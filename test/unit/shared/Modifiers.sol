@@ -125,7 +125,7 @@ contract Modifiers is Helpers {
     // --- Incentive Voting ---
 
     modifier addReceiver() {
-        _modifierAddReceiver;
+        _modifierAddReceiver();
         _;
     }
 
@@ -179,9 +179,11 @@ contract Modifiers is Helpers {
             data[i] = TokenLockerBase.LockData({amount: amount, epochsToUnlock: _lockMany.duration[i]});
         }
 
-        deal(address(govToken), _lockMany.user, totalAmount * 1 ether);
-        vm.prank(_lockMany.user);
+        deal(address(govToken), _lockMany.user, totalAmount);
+        vm.startPrank(_lockMany.user);
+        govToken.approve(address(tokenLocker), MAX);
         tokenLocker.lockMany(_lockMany.user, data);
+        vm.stopPrank();
         skip(_lockMany.skipAfter);
     }
 
