@@ -232,5 +232,253 @@ contract Unit_Concrete_IncentiveVoting_RegisterAccountWeight_ is Unit_Shared_Tes
         assertEq(incentiveVoting.getLockDataEpochsToUnlockBySlotReading(address(this), 0), 0);
     }
 
-    // More tests will be added once the _addVoteWeight function is tested.
+    /// @notice Test Register Account Weight under following conditions:
+    /// - Skip one period to be sure that we are not at epoch 0
+    /// - Lock 1 ether of token for 5 weeks on TokenLocker
+    /// - Register 2 new receivers
+    /// - Register account weight
+    /// - Points should remain the same, weight should be the same
+    function test_RegisteredAccountWeight_When_PreviousVotes_NotFrozen_SinglePosition_NoNewLock()
+        public
+        lock(
+            Modifier_Lock({
+                skipBefore: 1 weeks,
+                user: address(this),
+                amountToLock: DEF.LOCK_AMOUNT,
+                duration: DEF.LOCK_DURATION_W,
+                skipAfter: 0
+            })
+        )
+        addReceiver
+        addReceiver
+        registerAccountWeightAndVote(
+            Modifier_RegisterAccountWeightAndVote({
+                skipBefore: 0,
+                account: address(this),
+                minEpochs: 0,
+                votes: [
+                    [uint256(1), uint256(DEF.MAX_VOTE * 1 / 10)],
+                    [uint256(2), uint256(DEF.MAX_VOTE * 2 / 10)],
+                    [uint256(0), uint256(0)],
+                    [uint256(0), uint256(0)],
+                    [uint256(0), uint256(0)]
+                ],
+                skipAfter: 0
+            })
+        )
+    {
+        uint256 epoch = 1;
+        uint256 points0 = DEF.MAX_VOTE * 1 / 10;
+        uint256 points1 = DEF.MAX_VOTE * 2 / 10;
+        uint256 totalPoints = points0 + points1;
+        uint256 maxPoints = DEF.MAX_VOTE;
+
+        // Assertions before
+        assertEq(getWeek(), epoch);
+        assertEq(incentiveVoting.getLockDataEpochBySlotReading(address(this)), epoch);
+        assertEq(incentiveVoting.getLockDataFrozenWeightBySlotReading(address(this)), 0);
+        assertEq(incentiveVoting.getLockDataPointsBySlotReading(address(this)), totalPoints);
+        assertEq(incentiveVoting.getLockDataLockLengthBySlotReading(address(this)), 1);
+        assertEq(incentiveVoting.getLockDataVoteLengthBySlotReading(address(this)), 2);
+        assertEq(incentiveVoting.getLockDataActiveVotesBySlotReading(address(this), 1), [uint16(1), uint16(points0)]);
+        assertEq(incentiveVoting.getLockDataActiveVotesBySlotReading(address(this), 2), [uint16(2), uint16(points1)]);
+        assertEq(incentiveVoting.getLockDataLockedAmountsBySlotReading(address(this), 0), DEF.LOCK_AMOUNT);
+        assertEq(incentiveVoting.getLockDataEpochsToUnlockBySlotReading(address(this), 0), DEF.LOCK_DURATION_W);
+        // Receiver data
+        assertEq(incentiveVoting.getReceiverDecayRateBySlotReading(1), DEF.LOCK_AMOUNT * points0 / maxPoints);
+        assertEq(incentiveVoting.getReceiverDecayRateBySlotReading(2), DEF.LOCK_AMOUNT * points1 / maxPoints);
+        assertEq(incentiveVoting.getReceiverUpdateEpochBySlotReading(1), epoch);
+        assertEq(incentiveVoting.getReceiverUpdateEpochBySlotReading(2), epoch);
+        assertEq(
+            incentiveVoting.getReceiverEpochWeightsBySlotReading(1, epoch),
+            (DEF.LOCK_AMOUNT * points0 / maxPoints) * (DEF.LOCK_DURATION_W)
+        );
+        assertEq(
+            incentiveVoting.getReceiverEpochWeightsBySlotReading(2, epoch),
+            (DEF.LOCK_AMOUNT * points1 / maxPoints) * (DEF.LOCK_DURATION_W)
+        );
+        assertEq(
+            incentiveVoting.getReceiverEpocUnlocksBySlotReading(1, epoch + DEF.LOCK_DURATION_W),
+            DEF.LOCK_AMOUNT * points0 / maxPoints
+        );
+        assertEq(
+            incentiveVoting.getReceiverEpocUnlocksBySlotReading(2, epoch + DEF.LOCK_DURATION_W),
+            DEF.LOCK_AMOUNT * points1 / maxPoints
+        );
+        // Total data
+        assertEq(incentiveVoting.getTotalDecayRateBySlotReading(), DEF.LOCK_AMOUNT * totalPoints / maxPoints);
+        assertEq(incentiveVoting.getTotalUpdateEpochBySlotReading(), epoch);
+        assertEq(
+            incentiveVoting.getTotalEpochWeightsBySlotReading(epoch),
+            (DEF.LOCK_AMOUNT * totalPoints / maxPoints) * (DEF.LOCK_DURATION_W)
+        );
+        assertEq(
+            incentiveVoting.getTotalEpochUnlocksBySlotReading(epoch + DEF.LOCK_DURATION_W),
+            DEF.LOCK_AMOUNT * totalPoints / maxPoints
+        );
+
+        // Lock token in the mean time!
+        // Points should be the same, but weight will be different
+
+        // Expected emits
+        ITokenLocker.LockData[] memory locks = new ITokenLocker.LockData[](1);
+        locks[0] = ITokenLocker.LockData({amount: DEF.LOCK_AMOUNT, epochsToUnlock: DEF.LOCK_DURATION_W});
+
+        vm.expectEmit({emitter: address(incentiveVoting)});
+        emit IncentiveVoting.AccountWeightRegistered(address(this), epoch, 0, locks);
+
+        // Main call
+        incentiveVoting.registerAccountWeight(address(this), 0);
+
+        // Assertions after
+        assertEq(incentiveVoting.getLockDataEpochBySlotReading(address(this)), epoch);
+        assertEq(incentiveVoting.getLockDataFrozenWeightBySlotReading(address(this)), 0);
+        assertEq(incentiveVoting.getLockDataPointsBySlotReading(address(this)), totalPoints);
+        assertEq(incentiveVoting.getLockDataLockLengthBySlotReading(address(this)), 1);
+        assertEq(incentiveVoting.getLockDataVoteLengthBySlotReading(address(this)), 2);
+        assertEq(incentiveVoting.getLockDataActiveVotesBySlotReading(address(this), 1), [uint16(1), uint16(points0)]);
+        assertEq(incentiveVoting.getLockDataActiveVotesBySlotReading(address(this), 2), [uint16(2), uint16(points1)]);
+        assertEq(incentiveVoting.getLockDataLockedAmountsBySlotReading(address(this), 0), DEF.LOCK_AMOUNT);
+        assertEq(incentiveVoting.getLockDataEpochsToUnlockBySlotReading(address(this), 0), DEF.LOCK_DURATION_W);
+        // Receiver data
+        assertEq(incentiveVoting.getReceiverDecayRateBySlotReading(1), DEF.LOCK_AMOUNT * points0 / maxPoints);
+        assertEq(incentiveVoting.getReceiverDecayRateBySlotReading(2), DEF.LOCK_AMOUNT * points1 / maxPoints);
+        assertEq(incentiveVoting.getReceiverUpdateEpochBySlotReading(1), epoch);
+        assertEq(incentiveVoting.getReceiverUpdateEpochBySlotReading(2), epoch);
+        assertEq(
+            incentiveVoting.getReceiverEpochWeightsBySlotReading(1, epoch),
+            (DEF.LOCK_AMOUNT * points0 / maxPoints) * (DEF.LOCK_DURATION_W)
+        );
+        assertEq(
+            incentiveVoting.getReceiverEpochWeightsBySlotReading(2, epoch),
+            (DEF.LOCK_AMOUNT * points1 / maxPoints) * (DEF.LOCK_DURATION_W)
+        );
+        assertEq(
+            incentiveVoting.getReceiverEpocUnlocksBySlotReading(1, epoch + DEF.LOCK_DURATION_W),
+            DEF.LOCK_AMOUNT * points0 / maxPoints
+        );
+        assertEq(
+            incentiveVoting.getReceiverEpocUnlocksBySlotReading(2, epoch + DEF.LOCK_DURATION_W),
+            DEF.LOCK_AMOUNT * points1 / maxPoints
+        );
+        // Total data
+        assertEq(incentiveVoting.getTotalDecayRateBySlotReading(), DEF.LOCK_AMOUNT * totalPoints / maxPoints);
+        assertEq(incentiveVoting.getTotalUpdateEpochBySlotReading(), epoch);
+        assertEq(
+            incentiveVoting.getTotalEpochWeightsBySlotReading(epoch),
+            (DEF.LOCK_AMOUNT * totalPoints / maxPoints) * (DEF.LOCK_DURATION_W)
+        );
+        assertEq(
+            incentiveVoting.getTotalEpochUnlocksBySlotReading(epoch + DEF.LOCK_DURATION_W),
+            DEF.LOCK_AMOUNT * totalPoints / maxPoints
+        );
+    }
+
+    /// @notice Test Register Account Weight under following conditions:
+    /// - Skip one period to be sure that we are not at epoch 0
+    /// - Lock 1 ether of token for 5 weeks on TokenLocker
+    /// - Register 2 new receivers
+    /// - Register account weight
+    /// - Lock again 1 ether of token for 5 weeks on TokenLocker
+    /// - Points should remain the same, weight should be doubled
+    function test_RegisteredAccountWeight_When_PreviousVotes_NotFrozen_SinglePosition_WithNewLock()
+        public
+        lock(
+            Modifier_Lock({
+                skipBefore: 1 weeks,
+                user: address(this),
+                amountToLock: DEF.LOCK_AMOUNT,
+                duration: DEF.LOCK_DURATION_W,
+                skipAfter: 0
+            })
+        )
+        addReceiver
+        addReceiver
+        registerAccountWeightAndVote(
+            Modifier_RegisterAccountWeightAndVote({
+                skipBefore: 0,
+                account: address(this),
+                minEpochs: 0,
+                votes: [
+                    [uint256(1), uint256(DEF.MAX_VOTE * 1 / 10)],
+                    [uint256(2), uint256(DEF.MAX_VOTE * 2 / 10)],
+                    [uint256(0), uint256(0)],
+                    [uint256(0), uint256(0)],
+                    [uint256(0), uint256(0)]
+                ],
+                skipAfter: 0
+            })
+        )
+        lock(
+            Modifier_Lock({
+                skipBefore: 0,
+                user: address(this),
+                amountToLock: DEF.LOCK_AMOUNT,
+                duration: DEF.LOCK_DURATION_W,
+                skipAfter: 0
+            })
+        )
+    {
+        // Assertions before
+        // No need to assert, exactly the same as the `test_RegisteredAccountWeight_When_PreviousVotes_NotFrozen_SinglePosition_NoNewLock`.
+
+        uint256 epoch = 1;
+        uint256 points0 = DEF.MAX_VOTE * 1 / 10;
+        uint256 points1 = DEF.MAX_VOTE * 2 / 10;
+        uint256 totalPoints = points0 + points1;
+        uint256 maxPoints = DEF.MAX_VOTE;
+
+        // Expected emits
+        ITokenLocker.LockData[] memory locks = new ITokenLocker.LockData[](1);
+        locks[0] = ITokenLocker.LockData({amount: DEF.LOCK_AMOUNT * 2, epochsToUnlock: DEF.LOCK_DURATION_W});
+
+        vm.expectEmit({emitter: address(incentiveVoting)});
+        emit IncentiveVoting.AccountWeightRegistered(address(this), epoch, 0, locks);
+
+        // Main call
+        incentiveVoting.registerAccountWeight(address(this), 0);
+
+        // Assertions after
+        assertEq(incentiveVoting.getLockDataEpochBySlotReading(address(this)), epoch);
+        assertEq(incentiveVoting.getLockDataFrozenWeightBySlotReading(address(this)), 0);
+        assertEq(incentiveVoting.getLockDataPointsBySlotReading(address(this)), totalPoints);
+        assertEq(incentiveVoting.getLockDataLockLengthBySlotReading(address(this)), 1);
+        assertEq(incentiveVoting.getLockDataVoteLengthBySlotReading(address(this)), 2);
+        assertEq(incentiveVoting.getLockDataActiveVotesBySlotReading(address(this), 1), [uint16(1), uint16(points0)]);
+        assertEq(incentiveVoting.getLockDataActiveVotesBySlotReading(address(this), 2), [uint16(2), uint16(points1)]);
+        assertEq(incentiveVoting.getLockDataLockedAmountsBySlotReading(address(this), 0), 2 * DEF.LOCK_AMOUNT);
+        assertEq(incentiveVoting.getLockDataEpochsToUnlockBySlotReading(address(this), 0), DEF.LOCK_DURATION_W);
+        // Receiver data
+        assertEq(incentiveVoting.getReceiverDecayRateBySlotReading(1), 2 * DEF.LOCK_AMOUNT * points0 / maxPoints);
+        assertEq(incentiveVoting.getReceiverDecayRateBySlotReading(2), 2 * DEF.LOCK_AMOUNT * points1 / maxPoints);
+        assertEq(incentiveVoting.getReceiverUpdateEpochBySlotReading(1), epoch);
+        assertEq(incentiveVoting.getReceiverUpdateEpochBySlotReading(2), epoch);
+        assertEq(
+            incentiveVoting.getReceiverEpochWeightsBySlotReading(1, epoch),
+            (2 * DEF.LOCK_AMOUNT * points0 / maxPoints) * (DEF.LOCK_DURATION_W)
+        );
+        assertEq(
+            incentiveVoting.getReceiverEpochWeightsBySlotReading(2, epoch),
+            (2 * DEF.LOCK_AMOUNT * points1 / maxPoints) * (DEF.LOCK_DURATION_W)
+        );
+        assertEq(
+            incentiveVoting.getReceiverEpocUnlocksBySlotReading(1, epoch + DEF.LOCK_DURATION_W),
+            2 * DEF.LOCK_AMOUNT * points0 / maxPoints
+        );
+        assertEq(
+            incentiveVoting.getReceiverEpocUnlocksBySlotReading(2, epoch + DEF.LOCK_DURATION_W),
+            2 * DEF.LOCK_AMOUNT * points1 / maxPoints
+        );
+        // Total data
+        assertEq(incentiveVoting.getTotalDecayRateBySlotReading(), 2 * DEF.LOCK_AMOUNT * totalPoints / maxPoints);
+        assertEq(incentiveVoting.getTotalUpdateEpochBySlotReading(), epoch);
+        assertEq(
+            incentiveVoting.getTotalEpochWeightsBySlotReading(epoch),
+            (2 * DEF.LOCK_AMOUNT * totalPoints / maxPoints) * (DEF.LOCK_DURATION_W)
+        );
+        assertEq(
+            incentiveVoting.getTotalEpochUnlocksBySlotReading(epoch + DEF.LOCK_DURATION_W),
+            2 * DEF.LOCK_AMOUNT * totalPoints / maxPoints
+        );
+    }
 }
