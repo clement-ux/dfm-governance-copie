@@ -335,8 +335,8 @@ library WizardIncentiveVoting {
     /// @notice Get the locked amounts of a lock data
     /// @param _contract The contract address
     /// @param _account The account address
-    /// @param _epoch The epoch
-    function getLockDataLockedAmountsBySlotReading(IncentiveVoting _contract, address _account, uint256 _epoch)
+    /// @param _position in list of locked amounts
+    function getLockDataLockedAmountsBySlotReading(IncentiveVoting _contract, address _account, uint256 _position)
         public
         view
         returns (uint120)
@@ -347,10 +347,10 @@ library WizardIncentiveVoting {
         );
 
         uint256 valuePerSlot = 2; // How many uint120 fit in a slot? 256 / 120 = 2.
-        uint256 level = _epoch / valuePerSlot;
+        uint256 level = _position / valuePerSlot;
         bytes32 slot = bytes32(uint256(firstSlot) + level);
         bytes32 data = vm.load(address(_contract), slot);
-        uint256 offSet = _epoch % valuePerSlot + 1;
+        uint256 offSet = _position % valuePerSlot + 1;
         return uint120(uint256(data << (256 - offSet * 120) >> (256 - 120)));
     }
 
