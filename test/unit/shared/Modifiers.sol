@@ -4,6 +4,7 @@ pragma solidity 0.8.23;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {Helpers} from "./Helpers.sol";
+import {IncentiveVoting} from "../../../contracts/IncentiveVoting.sol";
 import {TokenLockerBase} from "../../../contracts/dependencies/TokenLockerBase.sol";
 
 import {MockLpToken} from "../../utils/mocks/MockLpToken.sol";
@@ -56,6 +57,15 @@ contract Modifiers is Helpers {
         uint256 amount;
         uint256 previousAmount;
         uint256 totalEpochEmissions;
+        uint256 skipAfter;
+    }
+
+    // --- Incentive Voting ---
+    struct Modifier_RegisterAccountWeightAndVote {
+        uint256 skipBefore;
+        address account;
+        uint256 minEpochs;
+        uint256[2][5] votes;
         uint256 skipAfter;
     }
 
@@ -126,6 +136,11 @@ contract Modifiers is Helpers {
 
     modifier addReceiver() {
         _modifierAddReceiver();
+        _;
+    }
+
+    modifier registerAccountWeightAndVote(Modifier_RegisterAccountWeightAndVote memory _rawav) {
+        _modifierRegisterWeightAccountAndVote(_rawav);
         _;
     }
 
@@ -226,5 +241,32 @@ contract Modifiers is Helpers {
     function _modifierAddReceiver() internal {
         vm.prank(incentiveVoting.vault());
         incentiveVoting.registerNewReceiver();
+    }
+
+    function _modifierRegisterWeightAccountAndVote(Modifier_RegisterAccountWeightAndVote memory _rawav) internal {
+        skip(_rawav.skipBefore);
+
+        // Get non null length
+        uint256 len;
+        for (uint256 i; i < _rawav.votes.length; i++) {
+            if (_rawav.votes[i][0] == 0) {
+                len = i;
+                break;
+            }
+        }
+
+        // Build votes array
+        IncentiveVoting.Vote[] memory votes = new IncentiveVoting.Vote[](len);
+        for (uint256 i = 0; i < len; i++) {
+            votes[i] = IncentiveVoting.Vote({id: _rawav.votes[i][0], points: _rawav.votes[i][1]});
+        }
+
+        vm.prank(_rawav.account);
+        if (len != 0) {
+            incentiveVoting.registerAccountWeightAndVote(_rawav.account, _rawav.minEpochs, votes);
+        } else {
+            incentiveVoting.registerAccountWeight(_rawav.account, _rawav.minEpochs);
+        }
+        skip(_rawav.skipAfter);
     }
 }
