@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
-import {Vm} from "forge-std/Vm.sol";
-
 import {DefaultValues as DEF} from "../../../utils/DefaultValues.sol";
 
 import {ITokenLocker} from "../../../../contracts/interfaces/ITokenLocker.sol";
@@ -10,11 +8,8 @@ import {IncentiveVoting} from "../../../../contracts/IncentiveVoting.sol";
 import {Unit_Shared_Test_} from "../../shared/Shared.sol";
 import {WizardIncentiveVoting} from "../../../utils/WizardIncentiveVoting.sol";
 
-import {stdStorage, StdStorage} from "forge-std/Test.sol";
-
 contract Unit_Concrete_IncentiveVoting_RegisterAccountWeightAndVote_ is Unit_Shared_Test_ {
     using WizardIncentiveVoting for IncentiveVoting;
-    using stdStorage for StdStorage;
 
     /*//////////////////////////////////////////////////////////////
                             REVERTING TESTS
@@ -966,6 +961,154 @@ contract Unit_Concrete_IncentiveVoting_RegisterAccountWeightAndVote_ is Unit_Sha
         assertEq(
             incentiveVoting.getTotalEpochUnlocksBySlotReading(newEpoch + locks[1].epochsToUnlock),
             locks[1].amount * votes[0].points / maxPoints + locks[1].amount * votes[1].points / maxPoints
+        );
+        assertEq(
+            incentiveVoting.getTotalEpochUnlocksBySlotReading(newEpoch + locks[0].epochsToUnlock),
+            locks[0].amount * votes[0].points / maxPoints + locks[0].amount * votes[1].points / maxPoints
+        );
+    }
+
+    /// @notice Test Register Account Weight and Vote under following conditions:
+    /// - Lock 1 ether of token for 5 weeks and 2 ethers of tokens for 10 weeks on TokenLocker
+    /// - Register 2 new receivers
+    /// - Register account weight and vote 30% points on receiver 1 and 70% points on receiver 2.
+    /// - Skip 6 weeks, lock 1 expired
+    /// - Register account weight and vote 80% points on receiver 1 and 10% points on receiver 2, 10% remaining points.
+    function test_RegisterAccountWeightAndVote_When_PreviousVotes_OneLockExpired()
+        public
+        lockMany(
+            Modifier_LockMany({
+                skipBefore: 1 weeks,
+                user: address(this),
+                amountToLock: [uint64(DEF.LOCK_AMOUNT), 2 * uint64(DEF.LOCK_AMOUNT), 0, 0, 0],
+                duration: [uint8(DEF.LOCK_DURATION_W), 2 * uint8(DEF.LOCK_DURATION_W), 0, 0, 0],
+                skipAfter: 0
+            })
+        )
+        addReceiver
+        addReceiver
+        registerAccountWeightAndVote(
+            Modifier_RegisterAccountWeightAndVote({
+                skipBefore: 0,
+                account: address(this),
+                minEpochs: 0,
+                votes: [
+                    [uint256(1), uint256(DEF.MAX_VOTE * 3 / 10)],
+                    [uint256(2), uint256(DEF.MAX_VOTE * 7 / 10)],
+                    [uint256(0), uint256(0)],
+                    [uint256(0), uint256(0)],
+                    [uint256(0), uint256(0)]
+                ],
+                skipAfter: 6 weeks
+            })
+        )
+    {
+        // Assertions before
+        // No need to assert, almost the same as the `test_RegisterAccountWeightAndVote_When_NoPreviousVotes_MultipleVotes_NotFrozen_MaxPoints_MultipleLocks`.
+
+        uint256 epochSkipped = 6;
+        uint256 newEpoch = 1 + epochSkipped;
+        assertEq(getWeek(), newEpoch); // 6 weeks skipped + 1 week before
+
+        uint256 maxPoints = incentiveVoting.MAX_PCT();
+        IncentiveVoting.Vote[] memory votes = new IncentiveVoting.Vote[](2);
+        votes[0] = IncentiveVoting.Vote({id: 1, points: maxPoints * 8 / 10});
+        votes[1] = IncentiveVoting.Vote({id: 2, points: maxPoints * 1 / 10});
+        uint256 totalPoints = votes[0].points + votes[1].points;
+
+        ITokenLocker.LockData[] memory locks = new ITokenLocker.LockData[](1);
+        locks[0] =
+            ITokenLocker.LockData({amount: 2 * DEF.LOCK_AMOUNT, epochsToUnlock: 2 * DEF.LOCK_DURATION_W - epochSkipped});
+
+        // Expected emits
+        vm.expectEmit({emitter: address(incentiveVoting)});
+        emit IncentiveVoting.ClearedVotes(address(this), newEpoch);
+        vm.expectEmit({emitter: address(incentiveVoting)});
+        emit IncentiveVoting.AccountWeightRegistered(address(this), newEpoch, 0, locks);
+        vm.expectEmit({emitter: address(incentiveVoting)});
+        emit IncentiveVoting.NewVotes(address(this), newEpoch, votes, totalPoints);
+
+        // Main call
+        incentiveVoting.registerAccountWeightAndVote(address(this), 0, votes);
+
+        // Assertions after
+        // Account data
+        assertEq(incentiveVoting.getLockDataEpochBySlotReading(address(this)), newEpoch);
+        assertEq(incentiveVoting.getLockDataFrozenWeightBySlotReading(address(this)), 0);
+        assertEq(incentiveVoting.getLockDataPointsBySlotReading(address(this)), totalPoints);
+        assertEq(incentiveVoting.getLockDataLockLengthBySlotReading(address(this)), 1);
+        assertEq(incentiveVoting.getLockDataVoteLengthBySlotReading(address(this)), 2);
+        assertEq(
+            incentiveVoting.getLockDataActiveVotesBySlotReading(address(this), 1), [uint16(1), uint16(votes[0].points)]
+        );
+        assertEq(
+            incentiveVoting.getLockDataActiveVotesBySlotReading(address(this), 2), [uint16(2), uint16(votes[1].points)]
+        );
+        assertEq(incentiveVoting.getLockDataLockedAmountsBySlotReading(address(this), 0), locks[0].amount);
+        assertEq(incentiveVoting.getLockDataEpochsToUnlockBySlotReading(address(this), 0), locks[0].epochsToUnlock);
+        // Receiver data
+        assertEq(incentiveVoting.getReceiverDecayRateBySlotReading(1), locks[0].amount * votes[0].points / maxPoints);
+        assertEq(incentiveVoting.getReceiverDecayRateBySlotReading(2), locks[0].amount * votes[1].points / maxPoints);
+        assertEq(incentiveVoting.getReceiverUpdateEpochBySlotReading(1), newEpoch);
+        assertEq(incentiveVoting.getReceiverUpdateEpochBySlotReading(2), newEpoch);
+        assertEq(
+            incentiveVoting.getReceiverEpochWeightsBySlotReading(1, newEpoch - 1),
+            (locks[0].amount * 3_000 / maxPoints) * (locks[0].epochsToUnlock + 1)
+        );
+        assertEq(
+            incentiveVoting.getReceiverEpochWeightsBySlotReading(2, newEpoch - 1),
+            (locks[0].amount * 7_000 / maxPoints) * (locks[0].epochsToUnlock + 1)
+        );
+        assertEq(
+            incentiveVoting.getReceiverEpochWeightsBySlotReading(1, newEpoch),
+            (locks[0].amount * votes[0].points / maxPoints) * locks[0].epochsToUnlock
+        );
+        assertEq(
+            incentiveVoting.getReceiverEpochWeightsBySlotReading(2, newEpoch),
+            (locks[0].amount * votes[1].points / maxPoints) * locks[0].epochsToUnlock
+        );
+        assertEq(incentiveVoting.getReceiverEpocUnlocksBySlotReading(1, newEpoch), 0);
+        assertEq(
+            incentiveVoting.getReceiverEpocUnlocksBySlotReading(1, epochSkipped), DEF.LOCK_AMOUNT * 3_000 / maxPoints
+        ); // Assert at epoch 6 (1 + 5), epoch unlock is correct (even this is in the past)
+        assertEq(
+            incentiveVoting.getReceiverEpocUnlocksBySlotReading(2, epochSkipped), DEF.LOCK_AMOUNT * 7_000 / maxPoints
+        ); // Assert at epoch 6 (1 + 5), epoch unlock is correct (even this is in the past)
+        assertEq(
+            incentiveVoting.getReceiverEpocUnlocksBySlotReading(1, newEpoch + locks[0].epochsToUnlock),
+            locks[0].amount * votes[0].points / maxPoints
+        );
+        assertEq(
+            incentiveVoting.getReceiverEpocUnlocksBySlotReading(2, newEpoch + locks[0].epochsToUnlock),
+            locks[0].amount * votes[1].points / maxPoints
+        );
+        // Total data
+        assertEq(
+            incentiveVoting.getTotalDecayRateBySlotReading(),
+            locks[0].amount * votes[0].points / maxPoints + locks[0].amount * votes[1].points / maxPoints
+        );
+        assertEq(incentiveVoting.getTotalUpdateEpochBySlotReading(), newEpoch);
+        assertEq(
+            incentiveVoting.getTotalEpochWeightsBySlotReading(newEpoch - 2),
+            (locks[0].amount * 3_000 / maxPoints) * (locks[0].epochsToUnlock + 2)
+                + (DEF.LOCK_AMOUNT * 3_000 / maxPoints) * (1)
+                + (locks[0].amount * 7_000 / maxPoints) * (locks[0].epochsToUnlock + 2)
+                + (DEF.LOCK_AMOUNT * 7_000 / maxPoints) * (1)
+        );
+        assertEq(
+            incentiveVoting.getTotalEpochWeightsBySlotReading(newEpoch - 1),
+            (locks[0].amount * 3_000 / maxPoints) * (locks[0].epochsToUnlock + 1)
+                + (locks[0].amount * 7_000 / maxPoints) * (locks[0].epochsToUnlock + 1)
+        );
+        assertEq(
+            incentiveVoting.getTotalEpochWeightsBySlotReading(newEpoch),
+            (locks[0].amount * votes[0].points / maxPoints) * locks[0].epochsToUnlock
+                + (locks[0].amount * votes[1].points / maxPoints) * locks[0].epochsToUnlock
+        );
+        assertEq(incentiveVoting.getTotalEpochUnlocksBySlotReading(newEpoch), 0);
+        assertEq(
+            incentiveVoting.getTotalEpochUnlocksBySlotReading(newEpoch + locks[0].epochsToUnlock),
+            locks[0].amount * votes[0].points / maxPoints + locks[0].amount * votes[1].points / maxPoints
         );
         assertEq(
             incentiveVoting.getTotalEpochUnlocksBySlotReading(newEpoch + locks[0].epochsToUnlock),
