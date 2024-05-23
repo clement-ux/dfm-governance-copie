@@ -89,6 +89,12 @@ contract Modifiers is Helpers {
 
     // --- Token Locker ---
 
+    modifier asTokenLocker() {
+        vm.startPrank(address(tokenLocker));
+        _;
+        vm.stopPrank();
+    }
+
     modifier lock(Modifier_Lock memory _lock) {
         _modifierLock(_lock, IERC20(address(govToken)));
         _;
