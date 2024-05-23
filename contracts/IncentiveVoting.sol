@@ -360,7 +360,7 @@ contract IncentiveVoting is DelegatedOps, SystemStart {
              vote weight than their actual lock weight.
      */
     function unfreeze(address account, bool keepVote) external returns (bool) {
-        require(msg.sender == address(tokenLocker));
+        require(msg.sender == address(tokenLocker), "Only TokenLocker");
         AccountData storage accountData = accountLockData[account];
         uint256 frozenWeight = accountData.frozenWeight;
 
