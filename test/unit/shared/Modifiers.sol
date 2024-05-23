@@ -73,6 +73,13 @@ contract Modifiers is Helpers {
                                MODIFIERS
     //////////////////////////////////////////////////////////////*/
 
+    // --- General ---
+
+    modifier _skip(uint256 time) {
+        skip(time);
+        _;
+    }
+
     // --- Core Owner ---
 
     modifier asOwner() {
