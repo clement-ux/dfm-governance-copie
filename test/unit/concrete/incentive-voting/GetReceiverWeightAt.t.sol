@@ -19,6 +19,13 @@ contract Unit_Concrete_IncentiveVoting_GetReceiverWeightAt_ is Unit_Shared_Test_
         assertEq(incentiveVoting.getReceiverWeightAt(incentiveVoting.receiverCount() + 1, 1), 0);
     }
 
+    /// @notice Test Get total weight write with the following conditions:
+    /// - Lock 1 ether of token for 5 weeks on TokenLocker
+    /// - Register new receiver
+    /// - Register account weight and vote 100% for receiver 1
+    /// - Skip 5 weeks
+    /// - Update Receiver and Total weight
+    /// - Check total weight for epoch 3
     function test_GetReceiverWeightAt_When_Epoch_IsLowerThan_LastUpdate()
         public
         lock(
@@ -59,6 +66,13 @@ contract Unit_Concrete_IncentiveVoting_GetReceiverWeightAt_ is Unit_Shared_Test_
         assertEq(incentiveVoting.getReceiverEpochWeightsBySlotReading(1, epoch), targetWeight);
     }
 
+    /// @notice Test Get total weight write with the following conditions:
+    /// - Lock 1 ether of token for 5 weeks on TokenLocker
+    /// - Register new receiver
+    /// - Register account weight and vote 100% for receiver 1
+    /// - Skip 3 weeks
+    /// - Update Receiver and Total weight
+    /// - Check total weight for epoch 3
     function test_GetReceiverWeightAt_When_Epoch_IsEqualTo_LastUpdate()
         public
         lock(
@@ -99,6 +113,13 @@ contract Unit_Concrete_IncentiveVoting_GetReceiverWeightAt_ is Unit_Shared_Test_
         assertEq(incentiveVoting.getReceiverEpochWeightsBySlotReading(1, epoch), targetWeight);
     }
 
+    /// @notice Test Get total weight write with the following conditions:
+    /// - Lock 1 ether of token for 5 weeks on TokenLocker
+    /// - Register new receiver
+    /// - Register account weight and vote 0% for receiver 1
+    /// - Skip 3 weeks
+    /// - Update Receiver and Total weight
+    /// - Check total weight for epoch 4
     function test_GetReceiverWeightAt_When_Epoch_IsGreaterThan_LastUpdate_NoWeight()
         public
         lock(
@@ -136,6 +157,13 @@ contract Unit_Concrete_IncentiveVoting_GetReceiverWeightAt_ is Unit_Shared_Test_
         assertEq(incentiveVoting.getReceiverEpochWeightsBySlotReading(1, epoch), 0);
     }
 
+    /// @notice Test Get total weight write with the following conditions:
+    /// - Lock 1 ether of token for 5 weeks on TokenLocker
+    /// - Register new receiver
+    /// - Register account weight and vote 100% for receiver 1
+    /// - Skip 3 weeks
+    /// - Update Receiver and Total weight
+    /// - Check total weight for epoch 4
     function test_GetReceiverWeightAt_When_Epoch_IsGreaterThan_LastUpdate_WithWeight()
         public
         lock(
