@@ -509,8 +509,9 @@ contract IncentiveVoting is DelegatedOps, SystemStart {
     ) internal {
         LockData[] memory lockData = _getAccountLocks(account);
         uint256 lockLength = lockData.length;
-        uint256 systemEpoch = getWeek();
+        if(op == add) require(lockLength > 0, "Registered weight has expired");
 
+        uint256 systemEpoch = getWeek();
         // Move calculation into separate function to avoid stack too deep error
         (uint256 totalWeight, uint256 totalDecay, uint256[MAX_LOCK_EPOCHS + 1] memory epochUnlocks) =
             _calculTotalWeightAndTotalDecay(votes.length, votes, lockLength, lockData, systemEpoch, op);
