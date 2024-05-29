@@ -8,6 +8,12 @@ contract Helpers is Base_Test_ {
                               SYSTEM START
     //////////////////////////////////////////////////////////////*/
 
+    function getWeek() internal view returns (uint256 epoch) {
+        uint256 startTime = coreOwner.START_TIME();
+        require(startTime != 0, "START_TIME not set");
+        return (block.timestamp - startTime) / 1 weeks;
+    }
+
     function getDay() public view returns (uint256) {
         uint256 startTime = coreOwner.START_TIME();
         require(startTime != 0, "START_TIME not set");

@@ -3,6 +3,7 @@ pragma solidity 0.8.23;
 
 // External imports
 import {Test} from "forge-std/Test.sol";
+import {Assertions} from "./utils/Assertions.sol";
 import {Constants} from "./utils/Constants.sol";
 
 // DAO contracts
@@ -14,7 +15,7 @@ import {TokenLocker} from "../contracts/TokenLocker.sol";
 import {BoostCalculator} from "../contracts/BoostCalculator.sol";
 import {IncentiveVoting} from "../contracts/IncentiveVoting.sol";
 
-abstract contract Base_Test_ is Test, Constants {
+abstract contract Base_Test_ is Test, Constants, Assertions {
     Vault public vault;
     LPLocker public lpLocker;
     GovToken public govToken;

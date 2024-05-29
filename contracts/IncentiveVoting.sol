@@ -90,7 +90,7 @@ contract IncentiveVoting is DelegatedOps, SystemStart {
     }
 
     function registerNewReceiver() external returns (uint256) {
-        require(msg.sender == vault);
+        require(msg.sender == vault, "Only Vault");
         uint256 id = receiverCount + 1;
         receiverUpdatedEpoch[id] = uint16(getWeek());
         receiverCount = uint16(id);
@@ -232,14 +232,14 @@ contract IncentiveVoting is DelegatedOps, SystemStart {
         // weights prior to updating the registered account weights
         if (accountData.voteLength > 0) {
             existingVotes = getAccountCurrentVotes(account);
-            _removeVoteWeights(account, existingVotes, accountData.frozenWeight);
+            _handleVoteWeights(account, existingVotes, accountData.frozenWeight, sub);
         }
 
         // get updated account lock weights and store locally
         uint256 frozenWeight = _registerAccountWeight(account, minEpochs);
 
         // resubmit the account's active vote using the newly registered weights
-        _addVoteWeights(account, existingVotes, frozenWeight);
+        _handleVoteWeights(account, existingVotes, frozenWeight, add);
         // do not call `_storeAccountVotes` because the vote is unchanged
     }
 
@@ -259,7 +259,7 @@ contract IncentiveVoting is DelegatedOps, SystemStart {
         // if account has an active vote, clear the recorded vote
         // weights prior to updating the registered account weights
         if (accountData.voteLength > 0) {
-            _removeVoteWeights(account, getAccountCurrentVotes(account), accountData.frozenWeight);
+            _handleVoteWeights(account, getAccountCurrentVotes(account), accountData.frozenWeight, sub);
             emit ClearedVotes(account, getWeek());
         }
 
@@ -267,7 +267,7 @@ contract IncentiveVoting is DelegatedOps, SystemStart {
         uint256 frozenWeight = _registerAccountWeight(account, minEpochs);
 
         // adjust vote weights based on the account's new vote
-        _addVoteWeights(account, votes, frozenWeight);
+        _handleVoteWeights(account, votes, frozenWeight, add);
         // store the new account votes
         _storeAccountVotes(account, accountData, votes, 0, 0);
     }
@@ -295,7 +295,7 @@ contract IncentiveVoting is DelegatedOps, SystemStart {
 
         // optionally clear previous votes
         if (clearPrevious) {
-            _removeVoteWeights(account, getAccountCurrentVotes(account), frozenWeight);
+            _handleVoteWeights(account, getAccountCurrentVotes(account), frozenWeight, sub);
             emit ClearedVotes(account, getWeek());
         } else {
             points = accountData.points;
@@ -303,7 +303,7 @@ contract IncentiveVoting is DelegatedOps, SystemStart {
         }
 
         // adjust vote weights based on the new vote
-        _addVoteWeights(account, votes, frozenWeight);
+        _handleVoteWeights(account, votes, frozenWeight, add);
         // store the new account votes
         _storeAccountVotes(account, accountData, votes, points, offset);
     }
@@ -314,7 +314,7 @@ contract IncentiveVoting is DelegatedOps, SystemStart {
     function clearVote(address account) external callerOrDelegated(account) {
         AccountData storage accountData = accountLockData[account];
         uint256 frozenWeight = accountData.frozenWeight;
-        _removeVoteWeights(account, getAccountCurrentVotes(account), frozenWeight);
+        _handleVoteWeights(account, getAccountCurrentVotes(account), frozenWeight, sub);
         accountData.voteLength = 0;
         accountData.points = 0;
 
@@ -338,7 +338,7 @@ contract IncentiveVoting is DelegatedOps, SystemStart {
         uint256 frozenWeight = accountData.frozenWeight;
         if (length > 0 || frozenWeight > 0) {
             if (accountData.voteLength > 0) {
-                _removeVoteWeights(account, getAccountCurrentVotes(account), frozenWeight);
+                _handleVoteWeights(account, getAccountCurrentVotes(account), frozenWeight, sub);
                 accountData.voteLength = 0;
                 accountData.points = 0;
                 emit ClearedVotes(account, epoch);
@@ -360,7 +360,7 @@ contract IncentiveVoting is DelegatedOps, SystemStart {
              vote weight than their actual lock weight.
      */
     function unfreeze(address account, bool keepVote) external returns (bool) {
-        require(msg.sender == address(tokenLocker));
+        require(msg.sender == address(tokenLocker), "Only TokenLocker");
         AccountData storage accountData = accountLockData[account];
         uint256 frozenWeight = accountData.frozenWeight;
 
@@ -370,7 +370,7 @@ contract IncentiveVoting is DelegatedOps, SystemStart {
             Vote[] memory existingVotes;
             if (accountData.voteLength > 0) {
                 existingVotes = getAccountCurrentVotes(account);
-                _removeVoteWeightsFrozen(existingVotes, frozenWeight);
+                _handleVoteWeightFrozen(existingVotes, frozenWeight, sub);
             }
 
             uint256 epoch = getWeek();
@@ -385,7 +385,7 @@ contract IncentiveVoting is DelegatedOps, SystemStart {
             // optionally resubmit previous votes
             if (existingVotes.length > 0) {
                 if (keepVote) {
-                    _addVoteWeightsUnfrozen(account, existingVotes);
+                    _handleVoteWeightUnfrozen(account, existingVotes, add);
                 } else {
                     accountData.voteLength = 0;
                     accountData.points = 0;
@@ -487,130 +487,81 @@ contract IncentiveVoting is DelegatedOps, SystemStart {
              registered weights of `msg.sender`. Account related values are not
              adjusted, they must be handled in the calling function.
      */
-    function _addVoteWeights(address account, Vote[] memory votes, uint256 frozenWeight) internal {
+    function _handleVoteWeights(
+        address account,
+        Vote[] memory votes,
+        uint256 frozenWeight,
+        function (uint256, uint256) internal pure returns(uint256) op
+    ) internal {
         if (votes.length > 0) {
             if (frozenWeight > 0) {
-                _addVoteWeightsFrozen(votes, frozenWeight);
+                _handleVoteWeightFrozen(votes, frozenWeight, op);
             } else {
-                _addVoteWeightsUnfrozen(account, votes);
+                _handleVoteWeightUnfrozen(account, votes, op);
             }
         }
     }
 
-    /**
-        @dev Decreases receiver and total weights, using a vote array and the
-             registered weights of `msg.sender`. Account related values are not
-             adjusted, they must be handled in the calling function.
-     */
-    function _removeVoteWeights(address account, Vote[] memory votes, uint256 frozenWeight) internal {
-        if (votes.length > 0) {
-            if (frozenWeight > 0) {
-                _removeVoteWeightsFrozen(votes, frozenWeight);
-            } else {
-                _removeVoteWeightsUnfrozen(account, votes);
-            }
-        }
-    }
-
-    /** @dev Should not be called directly, use `_addVoteWeights` */
-    function _addVoteWeightsUnfrozen(address account, Vote[] memory votes) internal {
+    function _handleVoteWeightUnfrozen(
+        address account,
+        Vote[] memory votes,
+        function (uint256, uint256) internal pure returns(uint256) op
+    ) internal {
         LockData[] memory lockData = _getAccountLocks(account);
         uint256 lockLength = lockData.length;
-        require(lockLength > 0, "Registered weight has expired");
+        if(op == add) require(lockLength > 0, "Registered weight has expired");
 
-        uint256 totalWeight;
-        uint256 totalDecay;
         uint256 systemEpoch = getWeek();
-        uint256[MAX_LOCK_EPOCHS + 1] memory epochUnlocks;
-        for (uint256 i = 0; i < votes.length; i++) {
+        // Move calculation into separate function to avoid stack too deep error
+        (uint256 totalWeight, uint256 totalDecay, uint256[MAX_LOCK_EPOCHS + 1] memory epochUnlocks) =
+            _calculTotalWeightAndTotalDecay(votes.length, votes, lockLength, lockData, systemEpoch, op);
+
+        for (uint256 i = 0; i < lockLength; i++) {
+            uint256 epochsToUnlock = lockData[i].epochsToUnlock;
+            totalEpochUnlocks[systemEpoch + epochsToUnlock] =
+                uint120(op(totalEpochUnlocks[systemEpoch + epochsToUnlock], epochUnlocks[epochsToUnlock]));
+        }
+        totalEpochWeights[systemEpoch] = uint128(op(getTotalWeightWrite(), totalWeight));
+        totalDecayRate = uint120(op(totalDecayRate, totalDecay));
+    }
+
+    function _calculTotalWeightAndTotalDecay(
+        uint256 len,
+        Vote[] memory votes,
+        uint256 lockLength,
+        LockData[] memory lockData,
+        uint256 systemEpoch,
+        function (uint256, uint256) internal pure returns(uint256) op
+    ) internal returns (uint256 totalWeight, uint256 totalDecay, uint256[MAX_LOCK_EPOCHS + 1] memory epochUnlocks) {
+        for (uint256 i = 0; i < len; i++) {
             uint256 id = votes[i].id;
             uint256 points = votes[i].points;
-
             uint256 weight = 0;
             uint256 decayRate = 0;
+
             for (uint256 x = 0; x < lockLength; x++) {
                 uint256 epochsToUnlock = lockData[x].epochsToUnlock;
                 uint256 amount = (lockData[x].amount * points) / MAX_PCT;
-                receiverEpochUnlocks[id][systemEpoch + epochsToUnlock] += uint120(amount);
 
+                receiverEpochUnlocks[id][systemEpoch + epochsToUnlock] =
+                    uint120(op(receiverEpochUnlocks[id][systemEpoch + epochsToUnlock], amount));
                 epochUnlocks[epochsToUnlock] += uint120(amount);
                 weight += amount * epochsToUnlock;
                 decayRate += amount;
             }
-            receiverEpochWeights[id][systemEpoch] = uint128(getReceiverWeightWrite(id) + weight);
-            receiverDecayRate[id] += uint120(decayRate);
+            receiverEpochWeights[id][systemEpoch] = uint128(op(getReceiverWeightWrite(id), weight));
+            receiverDecayRate[id] = uint120(op(receiverDecayRate[id], decayRate));
 
             totalWeight += weight;
             totalDecay += decayRate;
         }
-
-        for (uint256 i = 0; i < lockLength; i++) {
-            uint256 epochsToUnlock = lockData[i].epochsToUnlock;
-            totalEpochUnlocks[systemEpoch + epochsToUnlock] += uint120(epochUnlocks[epochsToUnlock]);
-        }
-        totalEpochWeights[systemEpoch] = uint128(getTotalWeightWrite() + totalWeight);
-        totalDecayRate += uint120(totalDecay);
     }
 
-    /** @dev Should not be called directly, use `_addVoteWeights` */
-    function _addVoteWeightsFrozen(Vote[] memory votes, uint256 frozenWeight) internal {
-        uint256 systemEpoch = getWeek();
-        uint256 totalWeight;
-        uint256 length = votes.length;
-        for (uint256 i = 0; i < length; i++) {
-            uint256 id = votes[i].id;
-            uint256 points = votes[i].points;
-
-            uint256 weight = (frozenWeight * points) / MAX_PCT;
-
-            receiverEpochWeights[id][systemEpoch] = uint128(getReceiverWeightWrite(id) + weight);
-            totalWeight += weight;
-        }
-
-        totalEpochWeights[systemEpoch] = uint128(getTotalWeightWrite() + totalWeight);
-    }
-
-    /** @dev Should not be called directly, use `_removeVoteWeights` */
-    function _removeVoteWeightsUnfrozen(address account, Vote[] memory votes) internal {
-        LockData[] memory lockData = _getAccountLocks(account);
-        uint256 lockLength = lockData.length;
-
-        uint256 totalWeight;
-        uint256 totalDecay;
-        uint256 systemEpoch = getWeek();
-        uint256[MAX_LOCK_EPOCHS + 1] memory epochUnlocks;
-
-        for (uint256 i = 0; i < votes.length; i++) {
-            (uint256 id, uint256 points) = (votes[i].id, votes[i].points);
-
-            uint256 weight = 0;
-            uint256 decayRate = 0;
-            for (uint256 x = 0; x < lockLength; x++) {
-                uint256 epochsToUnlock = lockData[x].epochsToUnlock;
-                uint256 amount = (lockData[x].amount * points) / MAX_PCT;
-                receiverEpochUnlocks[id][systemEpoch + epochsToUnlock] -= uint120(amount);
-
-                epochUnlocks[epochsToUnlock] += uint120(amount);
-                weight += amount * epochsToUnlock;
-                decayRate += amount;
-            }
-            receiverEpochWeights[id][systemEpoch] = uint128(getReceiverWeightWrite(id) - weight);
-            receiverDecayRate[id] -= uint120(decayRate);
-
-            totalWeight += weight;
-            totalDecay += decayRate;
-        }
-
-        for (uint256 i = 0; i < lockLength; i++) {
-            uint256 epochsToUnlock = lockData[i].epochsToUnlock;
-            totalEpochUnlocks[systemEpoch + epochsToUnlock] -= uint120(epochUnlocks[epochsToUnlock]);
-        }
-        totalEpochWeights[systemEpoch] = uint128(getTotalWeightWrite() - totalWeight);
-        totalDecayRate -= uint120(totalDecay);
-    }
-
-    /** @dev Should not be called directly, use `_removeVoteWeights` */
-    function _removeVoteWeightsFrozen(Vote[] memory votes, uint256 frozenWeight) internal {
+    function _handleVoteWeightFrozen(
+        Vote[] memory votes,
+        uint256 frozenWeight,
+        function (uint256, uint256) internal pure returns(uint256) op
+    ) internal {
         uint256 systemEpoch = getWeek();
 
         uint256 totalWeight;
@@ -620,11 +571,19 @@ contract IncentiveVoting is DelegatedOps, SystemStart {
 
             uint256 weight = (frozenWeight * points) / MAX_PCT;
 
-            receiverEpochWeights[id][systemEpoch] = uint128(getReceiverWeightWrite(id) - weight);
+            receiverEpochWeights[id][systemEpoch] = uint128(op(getReceiverWeightWrite(id), weight));
 
             totalWeight += weight;
         }
 
-        totalEpochWeights[systemEpoch] = uint128(getTotalWeightWrite() - totalWeight);
+        totalEpochWeights[systemEpoch] = uint128(op(getTotalWeightWrite(), totalWeight));
+    }
+
+    function add(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a + b;
+    }
+
+    function sub(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a - b;
     }
 }
