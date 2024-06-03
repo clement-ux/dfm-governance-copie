@@ -21,7 +21,7 @@ library DeploymentParams {
 
     string public constant SYMBOL = "VGT";
 
-    uint256 public constant SUPPLY = 100_000_000 ether;
+    uint256 public constant SUPPLY = 0 ether;
 
     /*//////////////////////////////////////////////////////////////
                              3. STABLECOIN
