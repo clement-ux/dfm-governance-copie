@@ -171,6 +171,15 @@ contract Modifiers is Helpers {
         _;
     }
 
+    modifier increaseUnallocatedSupply(uint256 amount) {
+        deal(address(govToken), alice, amount);
+        vm.startPrank(alice);
+        govToken.approve(address(vault), amount);
+        vault.increaseUnallocatedSupply(amount);
+        vm.stopPrank();
+        _;
+    }
+
     /*//////////////////////////////////////////////////////////////
                                FUNCTIONS
     //////////////////////////////////////////////////////////////*/
