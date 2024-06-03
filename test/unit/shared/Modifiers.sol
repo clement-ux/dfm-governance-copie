@@ -7,6 +7,7 @@ import {Helpers} from "./Helpers.sol";
 import {IncentiveVoting} from "../../../contracts/IncentiveVoting.sol";
 import {TokenLockerBase} from "../../../contracts/dependencies/TokenLockerBase.sol";
 
+import {MockedCall} from "./MockedCall.sol";
 import {MockLpToken} from "../../utils/mocks/MockLpToken.sol";
 import {MockStableCoin} from "../../utils/mocks/MockStableCoin.sol";
 
@@ -67,6 +68,13 @@ contract Modifiers is Helpers {
         uint256 minEpochs;
         uint256[2][5] votes;
         uint256 skipAfter;
+    }
+
+    // --- Vault ---
+    struct Modifier_RegisterAccount {
+        address receiver;
+        uint256 count;
+        uint16[2] maxEmissionPct;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -154,6 +162,12 @@ contract Modifiers is Helpers {
 
     modifier registerAccountWeightAndVote(Modifier_RegisterAccountWeightAndVote memory _rawav) {
         _modifierRegisterWeightAccountAndVote(_rawav);
+        _;
+    }
+
+    // --- Vault ---
+    modifier addReceiverFromVault(Modifier_RegisterAccount memory _ra) {
+        _modifierRegisterAccount(_ra);
         _;
     }
 
@@ -281,5 +295,17 @@ contract Modifiers is Helpers {
             incentiveVoting.registerAccountWeight(_rawav.account, _rawav.minEpochs);
         }
         skip(_rawav.skipAfter);
+    }
+
+    // --- Vault ---
+    function _modifierRegisterAccount(Modifier_RegisterAccount memory _ra) internal {
+        MockedCall.notifyRegisteredId(_ra.receiver);
+        vm.startPrank(coreOwner.owner());
+        uint256[] memory maxEmissionPcts = new uint256[](_ra.count);
+        for (uint256 i; i < _ra.count; i++) {
+            maxEmissionPcts[i] = _ra.maxEmissionPct[i];
+        }
+        vault.registerReceiver(_ra.receiver, _ra.count, maxEmissionPcts);
+        vm.stopPrank();
     }
 }
