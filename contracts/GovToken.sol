@@ -31,4 +31,9 @@ contract GovToken is ERC20 {
         _transfer(sender, tokenLocker, amount);
         return true;
     }
+
+    function mint(address to, uint256 amount) public returns (bool) {
+        _mint(to, amount);
+        return true;
+    }
 }
