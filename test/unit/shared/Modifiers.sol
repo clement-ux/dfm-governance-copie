@@ -77,6 +77,12 @@ contract Modifiers is Helpers {
         uint16[2] maxEmissionPct;
     }
 
+    struct Modifier_AllocateNewEmissions {
+        uint256 skipBefore;
+        uint256 amount;
+        uint256 skipAfter;
+    }
+
     /*//////////////////////////////////////////////////////////////
                                MODIFIERS
     //////////////////////////////////////////////////////////////*/
@@ -177,6 +183,13 @@ contract Modifiers is Helpers {
         govToken.approve(address(vault), amount);
         vault.increaseUnallocatedSupply(amount);
         vm.stopPrank();
+        _;
+    }
+
+    modifier notifyNewEmissions(Modifier_AllocateNewEmissions memory _ane) {
+        skip(_ane.skipBefore);
+        vault.notifyNewEmissions(_ane.amount);
+        skip(_ane.skipAfter);
         _;
     }
 
