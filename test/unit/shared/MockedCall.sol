@@ -14,4 +14,12 @@ library MockedCall {
             returnData: abi.encode(true)
         });
     }
+
+    function getReceiverVotePct(address callee, uint256 id, uint256 epoch, uint256 pct) public {
+        vm.mockCall({
+            callee: callee,
+            data: abi.encodeWithSignature("getReceiverVotePct(uint256,uint256)", id, epoch),
+            returnData: abi.encode(pct)
+        });
+    }
 }
